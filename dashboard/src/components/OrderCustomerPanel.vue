@@ -4,6 +4,7 @@
  * the items on a phone, so the same four sections have to render twice.
  */
 import { Avatar, Badge } from 'frappe-ui'
+import { customerRoute } from '../ia/routes'
 
 defineProps({
   order: { type: Object, required: true },
@@ -14,7 +15,7 @@ defineProps({
   <div class="divide-y divide-outline-gray-1">
     <section class="px-4 py-4">
       <p class="text-sm text-ink-gray-5">Customer</p>
-      <router-link :to="`/customers/${order.customer_id}`" class="mt-2 flex items-center gap-2.5">
+      <router-link :to="customerRoute(order.customer_id)" class="mt-2 flex items-center gap-2.5">
         <Avatar :label="order.customer" size="md" />
         <div class="min-w-0">
           <p class="truncate text-base text-ink-gray-8">{{ order.customer }}</p>

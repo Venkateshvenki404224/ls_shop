@@ -8,6 +8,7 @@ import EmptyState from '../components/EmptyState.vue'
 import { useAdminAction, useAdminRead } from '../data/api'
 import { erpnextLink } from '../data/erpnext'
 import { errorMessage } from '../data/errors'
+import { productRoute } from '../ia/routes'
 
 const route = useRoute()
 
@@ -109,7 +110,7 @@ async function saveReply() {
         <div class="mt-4 flex flex-wrap items-center gap-3 border-t border-outline-gray-1 pt-3 text-sm">
           <router-link
             v-if="review.product"
-            :to="`/products/${review.product.item_style}/variants/${review.variant}`"
+            :to="productRoute(review.product.item_style, review.variant)"
             class="inline-flex items-center gap-1 text-sm-medium text-ink-gray-8 hover:underline"
           >
             {{ review.product.name }}

@@ -130,6 +130,7 @@ doc_events = {
 		"on_update": "commera.api.payment_hooks.on_payment_request_update",
 	},
 	"Sales Order": {
+		"after_insert": "commera.jobs.send_order_success_acknowledgement",
 		"on_submit": [
 			"commera.jobs.send_order_success_acknowledgement",
 			"commera.utils.update_so_status_from_related_doc",
@@ -164,6 +165,7 @@ jinja = {
 	"filters": ["commera.utils.can_return"],
 	"methods": [
 		"commera.branding.get_brand_assets",
+		"commera.guest.is_guest_checkout_enabled",
 		"commera.utils.format_theme_css",
 		"commera.utils.get_currency_symbol",
 		"commera.search.result_card.get_search_result_fields",

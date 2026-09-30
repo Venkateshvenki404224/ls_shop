@@ -15,7 +15,7 @@ from commera.api.variant_pricing import (
 	set_variant_prices,
 )
 from commera.swatches import COLOUR_ATTRIBUTE, ensure_default_swatch, get_swatch_map
-from commera.utils import IN_CLAUSE_CHUNK_SIZE
+from commera.utils import IN_CLAUSE_CHUNK_SIZE, get_first_option_photos, get_product_covers
 
 PAGE_LENGTH = 20
 BULK_PRODUCT_LIMIT = 100
@@ -116,15 +116,7 @@ def get_products(
 	stock_by_item_code = get_ecommerce_stock(item_codes)
 
 	# A dashboard-created product never sets Item.image, so fall back to the first option image.
-	first_image_by_variant = {}
-	if variant_names:
-		for row in frappe.get_all(
-			"Website Slideshow Item",
-			filters={"parent": ["in", variant_names], "parenttype": "Style Attribute Variant"},
-			fields=["parent", "image"],
-			order_by="idx asc",
-		):
-			first_image_by_variant.setdefault(row.parent, row.image)
+	first_image_by_variant = get_first_option_photos(variant_names)
 
 	item_codes_by_variant = {}
 	for row in sizes:
@@ -423,14 +415,7 @@ def get_pricing_rows(
 	item_codes = [row.item_code for row in first_size_by_variant.values() if row.item_code]
 	prices_by_item_code = get_size_prices(item_codes)
 
-	first_image_by_variant = {}
-	for row in frappe.get_all(
-		"Website Slideshow Item",
-		filters={"parent": ["in", variant_names], "parenttype": "Style Attribute Variant"},
-		fields=["parent", "image"],
-		order_by="idx asc",
-	):
-		first_image_by_variant.setdefault(row.parent, row.image)
+	first_image_by_variant = get_first_option_photos(variant_names)
 
 	rows = []
 	for row in variants:
@@ -488,6 +473,7 @@ def get_product(item_template: str):
 			"Color Size Item",
 			filters={"parent": ["in", variant_names], "parenttype": "Style Attribute Variant"},
 			fields=["parent", "size", "item_code"],
+			order_by="idx asc",
 		)
 		if variant_names
 		else []
@@ -633,9 +619,7 @@ def get_top_products(limit: int = TOP_PRODUCTS_LIMIT):
 	templates = [row[0] for row in rows]
 	items_by_name = {
 		row.name: row
-		for row in frappe.get_all(
-			"Item", filters={"name": ["in", templates]}, fields=["name", "item_name", "image"]
-		)
+		for row in frappe.get_all("Item", filters={"name": ["in", templates]}, fields=["name", "item_name"])
 	}
 
 	configurators = frappe.get_all(
@@ -672,13 +656,14 @@ def get_top_products(limit: int = TOP_PRODUCTS_LIMIT):
 			item_codes_by_template.setdefault(template, []).append(row.item_code)
 	all_item_codes = [code for codes in item_codes_by_template.values() for code in codes]
 	stock_by_item_code = get_ecommerce_stock(all_item_codes)
+	covers = get_product_covers(templates)
 
 	return {
 		"products": [
 			{
 				"name": row[0],
 				"title": items_by_name.get(row[0], {}).get("item_name") or row[0],
-				"image": items_by_name.get(row[0], {}).get("image"),
+				"image": covers.get(row[0]),
 				"units": cint(row[1]),
 				"revenue": flt(row[2]),
 				"stock": sum(
@@ -1350,6 +1335,246 @@ def add_missing_attribute_values(attribute: str, values: list, abbreviations: di
 			ensure_default_swatch(attribute_doc.name, value)
 
 	return resolved
+
+
+@frappe.whitelist(methods=["POST"])
+def save_product_options(item_template: str, add: list | str | None = None, remove: list | str | None = None):
+	frappe.has_permission("Item", doc=item_template, ptype="write", throw=True)
+	frappe.has_permission("Item", ptype="create", throw=True)
+
+	configurator = frappe.db.get_value(
+		"Style Attribute Configurator",
+		{"item_template": item_template},
+		["name", "item_attribute"],
+		as_dict=True,
+	)
+	if not configurator:
+		frappe.throw(_("Product {0} has no options to edit").format(item_template))
+
+	add_rows = parse_option_size_pairs(add)
+	remove_keys = {(option.casefold(), size.casefold()) for option, size in parse_option_size_pairs(remove)}
+	if not add_rows and not remove_keys:
+		frappe.throw(_("Nothing to change"))
+
+	option_attribute = configurator.item_attribute
+	sizes_by_option = {}
+	for option, size in add_rows:
+		sizes_by_option.setdefault(option, []).append(size)
+	option_sizes = (
+		resolve_option_sizes(option_attribute, SIZE_ATTRIBUTE, list(sizes_by_option.items()))
+		if sizes_by_option
+		else []
+	)
+	add_pairs = {
+		(option.casefold(), size.casefold()): (option, size)
+		for option, sizes in option_sizes
+		for size in sizes
+	}
+
+	existing_items = get_variant_items_by_pair(item_template, option_attribute)
+	live_keys = get_listed_pairs(configurator.name, option_attribute)
+	remaining_keys = (live_keys - remove_keys) | set(add_pairs)
+	if not remaining_keys:
+		frappe.throw(_("Keep at least one variant on sale. A product cannot sell with none."))
+
+	disabled_codes = [
+		existing_items[key].name
+		for key in remove_keys
+		if key in existing_items and not existing_items[key].disabled
+	]
+	restored_codes = [
+		existing_items[key].name
+		for key in add_pairs
+		if key in existing_items and existing_items[key].disabled
+	]
+	if disabled_codes:
+		frappe.db.set_value("Item", {"name": ["in", disabled_codes]}, "disabled", 1)
+	if restored_codes:
+		frappe.db.set_value("Item", {"name": ["in", restored_codes]}, "disabled", 0)
+
+	item_code_by_key = {key: item.name for key, item in existing_items.items()}
+	created_codes = []
+	for key, (option, size) in add_pairs.items():
+		if key in item_code_by_key:
+			continue
+		size_item = create_variant(item_template, {option_attribute: option, SIZE_ATTRIBUTE: size}).insert()
+		item_code_by_key[key] = size_item.name
+		created_codes.append(size_item.name)
+
+	add_option_rows(configurator.name, item_template, [option for option, _sizes in option_sizes])
+	variants_with_new_sizes = sync_variant_sizes(
+		configurator.name, add_pairs, remove_keys, item_code_by_key, set(created_codes)
+	)
+	price_new_sizes(item_template, variants_with_new_sizes, [item.name for item in existing_items.values()])
+
+	return {"created": len(created_codes), "disabled": len(disabled_codes), "restored": len(restored_codes)}
+
+
+def add_option_rows(configurator: str, item_template: str, options: list) -> None:
+	listed = {
+		cstr(value).casefold()
+		for value in frappe.get_all(
+			"Style Attribute Variant", filters={"configurator": configurator}, pluck="attribute_value"
+		)
+	}
+	display_name = frappe.db.get_value("Item", item_template, "item_name") or item_template
+	for option in options:
+		if option.casefold() in listed:
+			continue
+		frappe.get_doc(
+			{
+				"doctype": "Style Attribute Variant",
+				"display_name": display_name,
+				"configurator": configurator,
+				"attribute_value": option,
+				"attribute_name": option,
+				"is_published": 0,
+			}
+		).insert()
+		listed.add(option.casefold())
+
+
+def parse_option_size_pairs(pairs: list | str | None) -> list:
+	rows = frappe.parse_json(pairs) if pairs else []
+	if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+		frappe.throw(_("Colours and sizes could not be read"))
+
+	parsed = []
+	for row in rows:
+		option, size = cstr(row.get("option")).strip(), cstr(row.get("size")).strip()
+		if not option or not size:
+			frappe.throw(_("Each variant needs both an option and a size"))
+		parsed.append((option, size))
+	return parsed
+
+
+def get_variant_items_by_pair(item_template: str, option_attribute: str) -> dict:
+	items = {
+		row.name: row
+		for row in frappe.get_all("Item", filters={"variant_of": item_template}, fields=["name", "disabled"])
+	}
+	attributes = frappe.get_all(
+		"Item Variant Attribute",
+		filters={
+			"parenttype": "Item",
+			"variant_of": item_template,
+			"attribute": ["in", [option_attribute, SIZE_ATTRIBUTE]],
+		},
+		fields=["parent", "attribute", "attribute_value"],
+	)
+
+	values_by_item = {}
+	for row in attributes:
+		values_by_item.setdefault(row.parent, {})[row.attribute] = cstr(row.attribute_value).casefold()
+
+	return {
+		(values[option_attribute], values[SIZE_ATTRIBUTE]): items[item_code]
+		for item_code, values in values_by_item.items()
+		if item_code in items and option_attribute in values and SIZE_ATTRIBUTE in values
+	}
+
+
+def get_listed_pairs(configurator: str, option_attribute: str) -> set:
+	variants = frappe.get_all(
+		"Style Attribute Variant",
+		filters={"configurator": configurator},
+		fields=["name", "attribute_value"],
+	)
+	option_by_variant = {row.name: cstr(row.attribute_value).casefold() for row in variants}
+	sizes = frappe.get_all(
+		"Color Size Item",
+		filters={"parenttype": "Style Attribute Variant", "parent": ["in", list(option_by_variant)]},
+		fields=["parent", "size"],
+	)
+	return {(option_by_variant[row.parent], cstr(row.size).casefold()) for row in sizes}
+
+
+def sync_variant_sizes(
+	configurator: str, add_pairs: dict, remove_keys: set, item_code_by_key: dict, created_codes: set
+) -> list:
+	variants = frappe.get_all(
+		"Style Attribute Variant",
+		filters={"configurator": configurator},
+		fields=["name", "attribute_value"],
+	)
+	current_rows = frappe.get_all(
+		"Color Size Item",
+		filters={"parenttype": "Style Attribute Variant", "parent": ["in", [row.name for row in variants]]},
+		fields=["parent", "size", "item_code"],
+		order_by="idx asc",
+	)
+	current_by_variant = {}
+	for row in current_rows:
+		current_by_variant.setdefault(row.parent, []).append((row.size, row.item_code))
+
+	size_rank = {
+		cstr(value).casefold(): rank
+		for rank, value in enumerate(
+			frappe.get_all(
+				"Item Attribute Value",
+				filters={"parent": SIZE_ATTRIBUTE},
+				order_by="idx asc",
+				pluck="attribute_value",
+			)
+		)
+	}
+
+	variants_with_new_sizes = []
+	for variant in variants:
+		option = cstr(variant.attribute_value).casefold()
+		current = current_by_variant.get(variant.name, [])
+		wanted = [
+			(size, code) for size, code in current if (option, cstr(size).casefold()) not in remove_keys
+		]
+		listed = {cstr(size).casefold() for size, _code in wanted}
+		wanted += [
+			(size, item_code_by_key[key])
+			for key, (_option, size) in add_pairs.items()
+			if key[0] == option and key[1] not in listed
+		]
+		wanted.sort(key=lambda row: size_rank.get(cstr(row[0]).casefold(), len(size_rank)))
+
+		if any(code in created_codes for _size, code in wanted):
+			variants_with_new_sizes.append(variant.name)
+		if wanted == current:
+			continue
+
+		variant_doc = frappe.get_doc("Style Attribute Variant", variant.name)
+		variant_doc.sizes = []
+		for size, item_code in wanted:
+			variant_doc.append("sizes", {"size": size, "item_code": item_code})
+		variant_doc.save()
+
+	return variants_with_new_sizes
+
+
+def price_new_sizes(item_template: str, variant_names: list, existing_item_codes: list) -> None:
+	if not variant_names:
+		return
+
+	prices = get_size_prices(existing_item_codes)
+	sizes = frappe.get_all(
+		"Color Size Item",
+		filters={"parenttype": "Style Attribute Variant", "parent": ["in", variant_names]},
+		fields=["parent", "item_code"],
+		order_by="idx asc",
+	)
+	product_price = next(iter(prices.values()), {})
+	for variant_name in variant_names:
+		option_price = next(
+			(
+				prices[row.item_code]
+				for row in sizes
+				if row.parent == variant_name and row.item_code in prices
+			),
+			product_price,
+		)
+		set_variant_prices(
+			item_template,
+			default_rate=option_price.get("default_rate"),
+			sale_rate=option_price.get("sale_rate"),
+			style_attribute_variant_list=[variant_name],
+		)
 
 
 def ensure_attribute_exists(attribute_name: str, seed_value: str, abbreviation: str):

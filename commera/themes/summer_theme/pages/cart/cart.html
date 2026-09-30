@@ -140,8 +140,8 @@
 						</table>
 						{% if frappe.session.user == "Guest" %}
 							<button type="button" class="btn btn-secondary w-100"
-								@click="$dispatch('open-auth')">
-								{{ _("Sign In to Checkout") }}
+								@click="$dispatch('open-auth', { mode: 'checkout' })">
+								{{ _("Checkout") }}
 							</button>
 						{% else %}
 							<button type="button" class="btn btn-secondary w-100" :disabled="checkout_loading"
@@ -167,6 +167,17 @@
 
 				async init() {
 					await this.$store.cart.fetch_detail_for_cart();
+					await this.resume_checkout_after_sign_in();
+				},
+
+				async resume_checkout_after_sign_in() {
+					const url = new URL(window.location.href);
+					if (!url.searchParams.has("checkout")) return;
+					url.searchParams.delete("checkout");
+					history.replaceState(null, "", url);
+					if ({{ (frappe.session.user != "Guest") | tojson }} && this.$store.cart.count) {
+						await this.save_quotation_for_checkout();
+					}
 				},
 
 				format_amount(amount) {

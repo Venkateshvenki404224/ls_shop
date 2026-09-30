@@ -17,8 +17,8 @@ from commera.install_fashion_demo_data import (
 	install_fashion_demo_data,
 )
 from commera.install_summer_theme_data import HERO_SLIDES, PRODUCTS_URL, install_summer_theme_data
+from commera.migrate import activate_summer_theme
 
-THEME = "Summer Theme"
 DEMO_SIZES = DEFAULT_SIZES
 SALE_PRICE_LIST = "Sale Price List"
 SHIPPING_RULE = "Standard Shipping"
@@ -359,13 +359,6 @@ def save_default_homepage():
 	for name in published[6:12]:
 		settings.append("best_picks", {"item_variant": name})
 
-	settings.save(ignore_permissions=True)
-
-
-def activate_summer_theme():
-	settings = frappe.get_doc("Shop Theme Settings")
-	settings.active_theme = THEME
-	settings.dynamic_pages_enabled = 1
 	settings.save(ignore_permissions=True)
 
 

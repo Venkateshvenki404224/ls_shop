@@ -14,6 +14,7 @@ from frappe.utils.data import strip_html
 from pypika import Order
 
 from commera.core import get_address_docs, get_party
+from commera.order_access import get_key_access
 
 # Ceiling for any IN (...) list this app sends to MariaDB/Postgres.
 IN_CLAUSE_CHUNK_SIZE = 1000
@@ -31,13 +32,22 @@ def get_address_lines(address_display):
 	return "\n".join(line for line in lines if line) or None
 
 
-def validate_document_access(doctype: str, name: str):
-	"""Return the document only if the session owns it, or holds read permission on it."""
-	# Sales Order names are sequential, so the id in the payload is all that guards someone else's order.
-	document = frappe.get_doc(doctype, name)
-	if document.owner != frappe.session.user and not document.has_permission("read"):
+def validate_document_access(doctype: str, name: str | int, key: str | None = None):
+	"""Return the document only if the session owns it, holds read permission on it, or holds its order key."""
+	# Sales Order names are sequential, so every refusal must read the same: a "not found" or a
+	# permission log would let a guest probing order numbers tell real orders from missing ones.
+	if not frappe.db.exists(doctype, name):
 		raise frappe.PermissionError
-	return document
+	document = frappe.get_doc(doctype, name)
+	if document.owner == frappe.session.user:
+		return document
+	if doctype == "Sales Order" and get_key_access(document, key):
+		return document
+	if frappe.has_permission(doctype, "read", document):
+		return document
+	# has_permission logs its refusal even with throw off, and that log alone marks the order as real.
+	frappe.clear_messages()
+	raise frappe.PermissionError
 
 
 def get_complete_nested_links(parent_group):
@@ -736,3 +746,99 @@ def get_delivery_note_lines(sales_order_name, docstatus=None) -> list[dict]:
 	if docstatus is not None:
 		query = query.where(delivery_note.docstatus == docstatus)
 	return query.run(as_dict=True)
+
+
+def get_first_option_photos(option_names: list) -> dict:
+	"""The first gallery photo of each Style Attribute Variant, in gallery order."""
+	first_photo_by_option = {}
+	for chunk in create_batch(list(option_names), IN_CLAUSE_CHUNK_SIZE):
+		for row in frappe.get_all(
+			"Website Slideshow Item",
+			filters={"parent": ["in", chunk], "parenttype": "Style Attribute Variant"},
+			fields=["parent", "image"],
+			order_by="idx asc",
+		):
+			first_photo_by_option.setdefault(row.parent, row.image)
+	return first_photo_by_option
+
+
+def get_item_images(item_codes: list) -> dict:
+	"""Matches the option on the item's attribute value, not Color Size Item: a size taken off sale loses
+	its row there but still sits on old orders."""
+	if not item_codes:
+		return {}
+
+	items = frappe.get_all(
+		"Item", filters={"name": ["in", item_codes]}, fields=["name", "image", "variant_of"]
+	)
+	template_by_item_code = {row.name: row.variant_of or row.name for row in items}
+	templates = list(set(template_by_item_code.values()))
+	options = read_product_options(templates)
+	covers = pick_product_covers(templates, options)
+
+	photo_by_option_key = {
+		(option.template, option.attribute_name, option.attribute_value): option.photo
+		for option in options
+		if option.photo
+	}
+	option_photo_by_item_code = {}
+	for row in frappe.get_all(
+		"Item Variant Attribute",
+		filters={"parent": ["in", item_codes], "parenttype": "Item"},
+		fields=["parent", "attribute", "attribute_value"],
+	):
+		photo = photo_by_option_key.get(
+			(template_by_item_code.get(row.parent), row.attribute, row.attribute_value)
+		)
+		if photo:
+			option_photo_by_item_code.setdefault(row.parent, photo)
+
+	return {
+		row.name: row.image
+		or option_photo_by_item_code.get(row.name)
+		or covers.get(template_by_item_code[row.name])
+		for row in items
+	}
+
+
+def get_product_covers(templates: list) -> dict:
+	"""A dashboard-created product never sets Item.image, so its cover is its earliest option's first photo."""
+	if not templates:
+		return {}
+	return pick_product_covers(templates, read_product_options(templates))
+
+
+def read_product_options(templates: list) -> list:
+	configurators = frappe.get_all(
+		"Style Attribute Configurator",
+		filters={"item_template": ["in", templates]},
+		fields=["name", "item_template"],
+	)
+	template_by_configurator = {row.name: row.item_template for row in configurators}
+	if not template_by_configurator:
+		return []
+
+	options = frappe.get_all(
+		"Style Attribute Variant",
+		filters={"configurator": ["in", list(template_by_configurator)]},
+		fields=["name", "configurator", "attribute_name", "attribute_value"],
+		order_by="creation asc",
+	)
+	first_photo_by_option = get_first_option_photos([option.name for option in options])
+
+	for option in options:
+		option.template = template_by_configurator[option.configurator]
+		option.photo = first_photo_by_option.get(option.name)
+	return options
+
+
+def pick_product_covers(templates: list, options: list) -> dict:
+	image_by_template = dict(
+		frappe.get_all("Item", filters={"name": ["in", templates]}, fields=["name", "image"], as_list=True)
+	)
+	covers = {}
+	for template in templates:
+		covers[template] = image_by_template.get(template) or next(
+			(option.photo for option in options if option.template == template and option.photo), None
+		)
+	return covers

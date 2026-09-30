@@ -13,6 +13,7 @@ const props = defineProps({
   sizes: { type: Array, required: true },
   optionLabel: { type: String, default: 'Colour' },
   swatches: { type: Object, default: () => ({}) },
+  live: { type: Array, default: null },
 })
 
 const excluded = defineModel({ type: Array, required: true })
@@ -28,6 +29,24 @@ const emptyOptions = computed(
 
 function isSelected(option, size) {
   return !excluded.value.includes(pairKey(option, size))
+}
+
+const liveKeys = computed(() => (props.live ? new Set(props.live) : null))
+
+function cellTone(option, size) {
+  if (!liveKeys.value) return ''
+  const isLive = liveKeys.value.has(pairKey(option, size))
+  const selected = isSelected(option, size)
+  if (isLive && !selected) return 'bg-surface-red-2'
+  if (!isLive && selected) return 'bg-surface-green-2'
+  return ''
+}
+
+function cellLabel(option, size) {
+  const tone = cellTone(option, size)
+  if (tone === 'bg-surface-red-2') return `${option} in size ${size}, coming off sale`
+  if (tone === 'bg-surface-green-2') return `${option} in size ${size}, new`
+  return `${option} in size ${size}`
 }
 
 function toggle(option, size, selected) {
@@ -73,10 +92,15 @@ function toggle(option, size, selected) {
                 <span class="truncate">{{ option }}</span>
               </span>
             </th>
-            <td v-for="size in props.sizes" :key="size" class="px-3 py-2 text-center">
+            <td
+              v-for="size in props.sizes"
+              :key="size"
+              class="px-3 py-2 text-center transition-colors"
+              :class="cellTone(option, size)"
+            >
               <Checkbox
                 :model-value="isSelected(option, size)"
-                :aria-label="`${option} in size ${size}`"
+                :aria-label="cellLabel(option, size)"
                 @update:model-value="toggle(option, size, $event)"
               />
             </td>
@@ -84,6 +108,16 @@ function toggle(option, size, selected) {
         </tbody>
       </table>
     </div>
+    <p v-if="props.live" class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-gray-5">
+      <span class="flex items-center gap-1.5">
+        <span class="size-3 rounded-1 bg-surface-green-2" aria-hidden="true" />
+        New
+      </span>
+      <span class="flex items-center gap-1.5">
+        <span class="size-3 rounded-1 bg-surface-red-2" aria-hidden="true" />
+        Coming off sale
+      </span>
+    </p>
   </div>
 </template>
 

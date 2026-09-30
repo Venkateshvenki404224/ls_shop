@@ -40,6 +40,7 @@ class CommeraSettings(Document):
 		)
 
 		accent_color: DF.Color | None
+		allow_guest_checkout: DF.Check
 		attribute_name_field: DF.Data | None
 		badge_bg_color: DF.Color | None
 		based_on_attribute: DF.Link | None

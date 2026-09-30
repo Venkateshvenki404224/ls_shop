@@ -1,5 +1,6 @@
 import frappe
 from frappe import _
+from frappe.rate_limiter import rate_limit
 from frappe.utils.data import cstr, flt, sha256_hash
 
 from commera.core import _get_cart_quotation
@@ -21,7 +22,9 @@ def is_connector_installed() -> bool:
 	return "bwh_shipping" in frappe.get_installed_apps()
 
 
-@frappe.whitelist()
+# Guest checkout: refuses any caller without a guest cart cookie, and is rate limited.
+@frappe.whitelist(allow_guest=True)  # nosemgrep: guest-whitelisted-method
+@rate_limit(limit=100, seconds=60 * 60)
 def get_shipping_options() -> dict:
 	"""Delivery options priced for the cart's current shipping address.
 
@@ -157,7 +160,9 @@ def get_cart_parcels(quotation) -> list[dict]:
 	]
 
 
-@frappe.whitelist(methods=["POST"])
+# Guest checkout: refuses any caller without a guest cart cookie, and is rate limited.
+@frappe.whitelist(allow_guest=True, methods=["POST"])  # nosemgrep: guest-whitelisted-method
+@rate_limit(limit=100, seconds=60 * 60)
 def set_delivery_option(delivery_option: str | None = None) -> dict:
 	"""Persist the customer's choice and reprice the delivery fee server-side.
 
@@ -451,10 +456,12 @@ def copy_delivery_option_to_order(quotation_name: str, sales_order) -> None:
 	sales_order.custom_shipping_service_code = choice.custom_shipping_service_code
 
 
-@frappe.whitelist()
-def get_order_tracking(sales_order: str) -> dict:
-	"""Customer-facing tracking for one of their own orders."""
-	validate_document_access("Sales Order", sales_order)
+# Guests read tracking only with the order's private link key; validate_document_access compares it.
+@frappe.whitelist(allow_guest=True)  # nosemgrep: guest-whitelisted-method
+@rate_limit(limit=120, seconds=60 * 60)
+def get_order_tracking(sales_order: str, key: str | None = None) -> dict:
+	"""Customer-facing tracking for one of their own orders, or one whose private link they hold."""
+	validate_document_access("Sales Order", sales_order, key)
 
 	if not is_connector_installed():
 		return {"has_tracking": False}

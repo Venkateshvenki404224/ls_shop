@@ -13,6 +13,7 @@ import { useAdminRead, useAdminAction } from '../data/api'
 import { erpnextLink } from '../data/erpnext'
 import { errorMessage } from '../data/errors'
 import { longDate, money } from '../data/format'
+import { orderRoute, productRoute } from '../ia/routes'
 
 const LAPSED_AFTER_DAYS = 90
 
@@ -189,7 +190,7 @@ function plural(count, word) {
         >
           <li v-for="order in theirOrders" :key="order.name">
             <router-link
-              :to="`/orders/${order.name}`"
+              :to="orderRoute(order.name)"
               class="flex items-center gap-4 px-4 py-2.5 hover:bg-surface-gray-2"
             >
               <div class="min-w-0 flex-1">
@@ -221,7 +222,7 @@ function plural(count, word) {
           <ul class="mt-2 divide-y divide-outline-gray-1 rounded-5 border border-outline-gray-1">
             <li v-for="product in topProducts" :key="product.item_code">
               <router-link
-                :to="`/products/${encodeURIComponent(product.product)}`"
+                :to="productRoute(product.product)"
                 class="flex items-center gap-3 px-4 py-2.5 hover:bg-surface-gray-2"
               >
                 <Thumb :image="product.image" size="size-9" />

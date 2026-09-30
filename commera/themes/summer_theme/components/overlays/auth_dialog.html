@@ -1,6 +1,8 @@
 {# `hidden` and `animate-spin` are toggled by templates/macros/auth_script.html, so renaming them here would fork the script. #}
 
-<div class="summer-auth" x-data="summer_auth()" @open-auth.window="open_dialog()"
+{% set allow_guest_checkout = is_guest_checkout_enabled() %}
+
+<div class="summer-auth" x-data="summer_auth()" @open-auth.window="open_dialog($event.detail)"
 	@keydown.escape.window="close_dialog()">
 
 	<div class="summer-auth-backdrop" x-show="is_open" x-cloak x-transition.opacity
@@ -10,14 +12,15 @@
 		x-trap.noscroll="is_open" aria-label="{{ _('Sign in') }}">
 
 		<div class="summer-auth-head">
-			<h4 class="mb-0">{{ _("Let's get started") }}</h4>
+			<h4 class="mb-0" x-show="selected_tab !== 'checkout'">{{ _("Let's get started") }}</h4>
+			<h4 class="mb-0" x-show="selected_tab === 'checkout'" x-cloak>{{ _("Checkout") }}</h4>
 			<button type="button" class="btn-close" @click="close_dialog()"
 				aria-label="{{ _('Close') }}">&times;</button>
 		</div>
 
 		<div class="summer-auth-body">
 			<div class="dz-tabs">
-				<ul class="nav nav-tabs center" role="tablist" x-show="!otp_sent">
+				<ul class="nav nav-tabs center" role="tablist" x-show="!otp_sent && selected_tab !== 'checkout'">
 					<li class="nav-item" role="presentation">
 						<button type="button" class="nav-link" role="tab"
 							:class="selected_tab === 'login' ? 'active' : ''"
@@ -33,6 +36,36 @@
 				</ul>
 
 				<div class="tab-content pt-4">
+
+					<div class="tab-pane fade show active" role="tabpanel"
+						x-show="selected_tab === 'checkout' && !otp_sent" x-cloak>
+						<form @submit.prevent="send_checkout_otp($data, $refs)">
+							{% if allow_guest_checkout %}
+								<p class="mb-3">{{ _("Sign in to use your saved addresses. We'll email you a code.") }}</p>
+							{% else %}
+								<p class="mb-3">{{ _("Sign in to check out. We'll email you a code.") }}</p>
+							{% endif %}
+							<div class="form-group mb-3">
+								<label class="form-label">{{ _("Email") }}*</label>
+								<input type="email" class="form-control" required x-model="email"
+									autocomplete="email" placeholder="{{ _('Enter your email') }}">
+							</div>
+							<button type="submit" class="btn btn-secondary w-100" x-ref="checkout_otp_btn">
+								{{ _("Send Code") }}
+								<span class="hidden animate-spin" role="status" aria-label="{{ _('loading') }}"></span>
+							</button>
+						</form>
+						{% if allow_guest_checkout %}
+							<div class="d-flex align-items-center gap-3 my-3">
+								<hr class="flex-grow-1 m-0">
+								<span>{{ _("or") }}</span>
+								<hr class="flex-grow-1 m-0">
+							</div>
+							<a href="/{{ frappe.lang or 'en' }}/cart/checkout" class="btn btn-outline-secondary w-100">
+								{{ _("Continue as Guest") }}
+							</a>
+						{% endif %}
+					</div>
 
 					<div class="tab-pane fade show active" role="tabpanel"
 						x-show="selected_tab === 'login' && !otp_sent" x-cloak>
@@ -122,7 +155,8 @@
 			resend_timer: 0,
 			resend_interval: null,
 
-			open_dialog() {
+			open_dialog(detail) {
+				this.selected_tab = detail?.mode === "checkout" ? "checkout" : "login";
 				this.is_open = true;
 			},
 

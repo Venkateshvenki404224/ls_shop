@@ -83,7 +83,13 @@
         }
         let url;
         let args;
-        if (x_data.selected_tab === 'login') {
+        if (x_data.selected_tab === 'checkout') {
+            url = '/api/v2/method/commera.api.signup.verify_checkout_otp';
+            args = {
+                'email': x_data.email,
+                'otp': otpValue,
+            };
+        } else if (x_data.selected_tab === 'login') {
             url = '/api/v2/method/commera.api.signup.verify_login_otp';
             args = {
                 'email': x_data.email,
@@ -105,6 +111,13 @@
         spinner.classList.remove("hidden");
         try {
             const data = await frappe_call(url, args);
+            // The page's CSRF token belongs to the guest session, so checkout resumes on a fresh load.
+            if (x_data.selected_tab === 'checkout') {
+                const resume_url = new URL(window.location.href);
+                resume_url.searchParams.set('checkout', '1');
+                window.location.href = resume_url.toString();
+                return;
+            }
             let message = "Logged in successfully"
             if (url === '/api/v2/method/commera.api.signup.verify_signup_otp') {
                 message = "Account created successfully"
@@ -136,7 +149,10 @@
     function resend_otp(x_data, ref) {
         if (x_data.resend_timer > 0) return;
         start_resend_timer(x_data);
-        if (x_data.selected_tab === 'login') {
+        if (x_data.selected_tab === 'checkout') {
+            send_checkout_otp(x_data, ref);
+        }
+        else if (x_data.selected_tab === 'login') {
             login_user(x_data, ref);
         }
         else {
@@ -145,26 +161,28 @@
     }
 
     async function login_user(x_data, ref) {
+        await request_otp(x_data, ref.login_otp_btn, ref, '/api/v2/method/commera.api.signup.send_login_otp');
+    }
+
+    async function send_checkout_otp(x_data, ref) {
+        await request_otp(x_data, ref.checkout_otp_btn, ref, '/api/v2/method/commera.api.signup.send_checkout_otp');
+    }
+
+    async function request_otp(x_data, btn, ref, url) {
         const email = x_data.email;
         if (!email) {
             toast("Please enter a valid email", { type: "warning" });
             return;
         }
-        const args = {
-            'email': email
-        };
-        const btn = ref.login_otp_btn
         const spinner = btn.querySelector(".animate-spin");
         btn.disabled = true;
         spinner.classList.remove("hidden");
         try {
-            const data = await frappe_call('/api/v2/method/commera.api.signup.send_login_otp', args);
+            await frappe_call(url, { 'email': email });
 
             toast("OTP sent successfully, please check you email.", { type: "success" });
             x_data.otp_sent = true;
             focus_first_otp_box(ref);
-
-
         } catch (error) {
         }
         finally {

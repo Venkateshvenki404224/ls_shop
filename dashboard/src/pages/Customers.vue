@@ -11,6 +11,7 @@ import { useAdminRead } from '../data/api'
 import { longDate, money } from '../data/format'
 import { useIsMobile } from '../utils/useIsMobile'
 import { ia } from '../ia/store'
+import { customerRoute } from '../ia/routes'
 
 const query = ref('')
 const page = ref(1)
@@ -74,7 +75,7 @@ const skeletonColumns = computed(() => (isMobile.value ? 2 : 5))
              in the search box. The skeleton means first load only. -->
         <ListSkeleton v-if="customersRequest.loading && !rows.length" :columns="skeletonColumns" />
         <ListRows v-else :items="rows" row-key="id" v-slot="{ item }">
-          <ListRow :to="`/customers/${item.id}`" :value="item.id">
+          <ListRow :to="customerRoute(item.id)" :value="item.id">
             <ListCell>
               <div class="flex min-w-0 items-center gap-2.5">
                 <Avatar :label="item.name" size="sm" />

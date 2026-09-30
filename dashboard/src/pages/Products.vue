@@ -15,6 +15,7 @@ import { useAdminRead, useAdminAction } from '../data/api'
 import { pickCollectionFor, useCollections } from '../data/collections'
 import { priceRange, shortDate, stockTone } from '../data/format'
 import { ia } from '../ia/store'
+import { productRoute } from '../ia/routes'
 import { openImport } from '../data/importFlow'
 import { openAddProduct } from '../data/addProduct'
 
@@ -210,7 +211,7 @@ function moveToCollection() {
       <ListSkeleton v-if="productsRequest.loading && !rows.length" :columns="6" />
 
       <ListRows v-else :items="rows" row-key="name" v-slot="{ item }">
-        <ListRow :to="`/products/${item.name}`" :value="item.name">
+        <ListRow :to="productRoute(item.name)" :value="item.name">
           <ListCell>
             <div class="flex min-w-0 items-center gap-2.5">
               <Thumb :image="item.image" />

@@ -1,11 +1,12 @@
 <script setup>
 import { watch } from 'vue'
-import { Alert, Button, SettingsBody, dialog, toast } from 'frappe-ui'
+import { Alert, Button, SettingsBody } from 'frappe-ui'
 import SettingsPanelHeader from './SettingsPanelHeader.vue'
 import SettingsFieldRows from './SettingsFieldRows.vue'
 import SettingsSkeleton from './SettingsSkeleton.vue'
 import { useAdminAction, useAdminRead } from '../../data/api'
 import { useSettingsAutosave } from '../../data/useSettingsAutosave'
+import { confirmInstallDemoData, installDemoDataAction } from '../../data/demoData'
 
 const props = defineProps({
   active: { type: Boolean, default: false },
@@ -13,7 +14,6 @@ const props = defineProps({
 
 const advanced = useAdminRead('settings.get_advanced_settings', { immediate: false })
 const save = useAdminAction('settings.save_advanced_settings')
-const installDemoData = useAdminAction('settings.install_demo_data')
 
 const { values, adopt, set, commit } = useSettingsAutosave(save)
 
@@ -39,26 +39,6 @@ watch(
 // a value on save — so the whole tab is re-read rather than assumed.
 async function commitField(fieldname, value, label) {
   await commit(fieldname, value, label, () => advanced.reload())
-}
-
-// The seeder rewrites the homepage, the footer, the store currency and the payment accounts,
-// so the confirmation names those rather than only the catalogue it also creates.
-function confirmInstallDemoData() {
-  dialog.confirm({
-    title: 'Replace this store with demo data?',
-    message:
-      'It seeds a full demo catalogue, and overwrites your homepage, footer, store currency and payment accounts. Run it on a store you have not set up yet.',
-    theme: 'red',
-    confirmLabel: 'Install demo data',
-    onConfirm: async () => {
-      await installDemoData.submit()
-      // useAdminAction has already toasted a refusal; a second toast here would stack on it.
-      if (installDemoData.error) return
-      toast.success('Demo data queued', {
-        description: 'It runs in the background and takes a few minutes.',
-      })
-    },
-  })
 }
 </script>
 
@@ -122,7 +102,7 @@ function confirmInstallDemoData() {
           variant="subtle"
           theme="red"
           label="Install demo data"
-          :loading="installDemoData.loading"
+          :loading="installDemoDataAction.loading"
           @click="confirmInstallDemoData"
         />
       </div>

@@ -43,10 +43,16 @@ DEFAULT_ROUTES = [
 		"template_path": "pages/account/orders/index.html",
 		"requires_auth": 1,
 	},
+	# requires_auth 0 on purpose: a guest opens the private order link; the controller checks its key.
 	{
 		"url_pattern": rf"^{LANG}/account/orders/detail$",
 		"template_path": "pages/account/orders/detail.html",
-		"requires_auth": 1,
+		"requires_auth": 0,
+	},
+	{
+		"url_pattern": rf"^{LANG}/track-order$",
+		"template_path": "pages/track_order.html",
+		"requires_auth": 0,
 	},
 	# requires_auth 0 on purpose: this is the gateway return URL, so the page asks for the login itself.
 	{

@@ -89,3 +89,40 @@ def verify_signup_otp(email: str, first_name: str, last_name: str, otp: str):
 def verify_login_otp(email: str, otp: str):
 	verify_otp(email, otp)
 	frappe.local.login_manager.login_as(email)
+
+
+def get_placeholder_first_name(email: str) -> str:
+	return email.split("@", 1)[0]
+
+
+# Pre-login by definition; writes nothing but the cached OTP, and is rate limited. It answers the same
+# whether or not the email has an account, so checkout never tells a stranger who shops here.
+@frappe.whitelist(allow_guest=True, methods=["POST"])  # nosemgrep: guest-whitelisted-method
+@rate_limit(limit=30, seconds=60 * 60)
+def send_checkout_otp(email: str):
+	email = cstr(email).strip().lower()
+	validate_single_email(email)
+	send_otp(email)
+
+
+# Pre-login by definition; the OTP proves the caller owns the address.
+@frappe.whitelist(allow_guest=True, methods=["POST"])  # nosemgrep: guest-whitelisted-method
+@rate_limit(key="email", limit=5, seconds=60 * 5)
+def verify_checkout_otp(email: str, otp: str):
+	email = cstr(email).strip().lower()
+	verify_otp(email, otp)
+
+	enabled = frappe.db.get_value("User", email, "enabled")
+	if enabled is None:
+		frappe.get_doc(
+			{
+				"doctype": "User",
+				"email": email,
+				"first_name": get_placeholder_first_name(email),
+				"enabled": 1,
+			}
+		).insert(ignore_permissions=True)
+	elif not enabled:
+		frappe.throw(_("This account is disabled."), frappe.AuthenticationError)
+
+	frappe.local.login_manager.login_as(email)

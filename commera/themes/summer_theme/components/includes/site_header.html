@@ -10,10 +10,6 @@
 	@keydown.escape="account_open = false"
 	x-data="{
 		account_open: false,
-		async logout() {
-			await frappe_call('/api/v2/method/logout');
-			window.location.href = '/{{ language }}';
-		},
 	}">
 	<a class="nav-link" href="javascript:void(0);" @click="account_open = !account_open"
 		aria-haspopup="true" :aria-expanded="account_open" aria-label="{{ _('My Account') }}">{{ caller() }}</a>
@@ -21,7 +17,7 @@
 		:class="account_open ? 'show' : ''" x-cloak>
 		<a class="dropdown-item" href="/{{ language }}/account/dashboard">{{ _("My Account") }}</a>
 		<a class="dropdown-item" href="/{{ language }}/account/orders">{{ _("My Orders") }}</a>
-		<button type="button" class="dropdown-item" @click="account_open = false; logout()">{{ _("Logout") }}</button>
+		<button type="button" class="dropdown-item" @click="account_open = false; logout('/{{ language }}')">{{ _("Logout") }}</button>
 	</div>
 </li>
 {% endmacro %}

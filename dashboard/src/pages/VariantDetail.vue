@@ -10,6 +10,7 @@ import VariantMedia from '../components/VariantMedia.vue'
 import { useAdminRead, useAdminAction } from '../data/api'
 import { errorMessage } from '../data/errors'
 import { pricePayload, shownPrice } from '../data/product'
+import { productRoute } from '../ia/routes'
 
 const route = useRoute()
 
@@ -107,7 +108,7 @@ const loadFailure = computed(() => {
       title: 'Variant not found',
       description: `${product.value.title} has no option ${route.params.variantId}. It may have been deleted.`,
       backLabel: 'Back to product',
-      backRoute: `/products/${product.value.name}`,
+      backRoute: productRoute(product.value.name),
     }
   }
   return {
@@ -124,10 +125,10 @@ const loadFailure = computed(() => {
   <template v-if="product && variant">
     <AppPageHeader
       :title="variant.option"
-      :back-to="`/products/${product.name}`"
+      :back-to="productRoute(product.name)"
       :breadcrumbs="[
         { label: 'Products', route: '/products' },
-        { label: product.title, route: `/products/${product.name}` },
+        { label: product.title, route: productRoute(product.name) },
         { label: variant.option },
       ]"
     >
@@ -227,10 +228,10 @@ const loadFailure = computed(() => {
   <template v-else-if="productRequest.loading">
     <AppPageHeader
       :title="route.params.variantId"
-      :back-to="`/products/${route.params.id}`"
+      :back-to="productRoute(route.params.id)"
       :breadcrumbs="[
         { label: 'Products', route: '/products' },
-        { label: route.params.id, route: `/products/${route.params.id}` },
+        { label: route.params.id, route: productRoute(route.params.id) },
         { label: route.params.variantId },
       ]"
     />
@@ -261,10 +262,10 @@ const loadFailure = computed(() => {
   <template v-else>
     <AppPageHeader
       :title="route.params.variantId"
-      :back-to="`/products/${route.params.id}`"
+      :back-to="productRoute(route.params.id)"
       :breadcrumbs="[
         { label: 'Products', route: '/products' },
-        { label: route.params.id, route: `/products/${route.params.id}` },
+        { label: route.params.id, route: productRoute(route.params.id) },
         { label: route.params.variantId },
       ]"
     />

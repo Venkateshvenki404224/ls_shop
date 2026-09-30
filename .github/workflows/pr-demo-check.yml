@@ -35,7 +35,7 @@ jobs:
         with:
           script: |
             const UI_PATH = /^dashboard\/src\/|^commera\/(templates|themes|www|public)\//;
-            const SKIP_LABELS = ['skip-demo', 'backport'];
+            const SKIP_LABELS = ['skip-demo'];
             const MEDIA = [
               /!\[[^\]]*\]\([^)]+\)/,
               /<(img|video)\b/i,
@@ -99,6 +99,11 @@ jobs:
                 { createIfMissing: false });
             }
             if (skipped.length) return pass(`skipped via the \`${skipped[0]}\` label`);
+
+            // Its UI changes already passed this check in their own pull requests.
+            const isVersionSync = pr.head.repo?.full_name === pr.base.repo.full_name
+              && pr.head.ref === 'develop' && pr.base.ref === 'version-16';
+            if (isVersionSync) return pass('develop is being merged into version-16');
 
             const uiFiles = await changedUiFiles();
             if (!uiFiles.length) return pass('no UI changes');

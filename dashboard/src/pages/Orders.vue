@@ -14,6 +14,7 @@ import { printUrl } from '../data/erpnext'
 import { money, shortDate } from '../data/format'
 import { useIsMobile } from '../utils/useIsMobile'
 import { ia } from '../ia/store'
+import { orderRoute } from '../ia/routes'
 
 const TABS = [
   { label: 'All', value: 'all' },
@@ -200,7 +201,7 @@ function printDeliveryNotes() {
       <ListSkeleton v-if="ordersRequest.loading && !rows.length" :columns="skeletonColumns" />
 
       <ListRows v-else :items="rows" row-key="name" v-slot="{ item }">
-        <ListRow :to="`/orders/${item.name}`" :value="item.name">
+        <ListRow :to="orderRoute(item.name)" :value="item.name">
           <ListCell>
             <div class="min-w-0">
               <p class="truncate text-base text-ink-gray-8">{{ item.customer }}</p>

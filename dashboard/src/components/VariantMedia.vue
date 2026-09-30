@@ -59,12 +59,12 @@ async function remove(fileUrl) {
     <input ref="fileInput" type="file" accept="image/*" multiple class="hidden" @change="onFilePicked" />
     <div class="flex flex-wrap gap-2" @dragover.prevent @drop.prevent="onDrop">
       <div
-        v-for="image in variant.images"
-        :key="image"
+        v-for="(image, index) in variant.images"
+        :key="`${index}-${image}`"
         class="group relative size-20 overflow-hidden rounded-4 border border-outline-gray-1 bg-surface-gray-2"
       >
         <img :src="image" class="size-full object-cover" alt="" />
-        <Badge v-if="image === variant.images[0]" class="absolute inset-x-1 bottom-1" label="Cover" variant="subtle" />
+        <Badge v-if="index === 0" class="absolute bottom-1 start-1" label="Cover" theme="gray" variant="solid" size="sm" />
         <!-- Touch has no hover, so the only way to delete a photo has to be
              visible from the start on a phone; hover-reveal is a desktop luxury. -->
         <Button
@@ -89,7 +89,7 @@ async function remove(fileUrl) {
     </div>
 
     <p v-if="!variant.images.length" class="mt-2 text-p-sm text-ink-gray-5">
-      No photo yet — this variant falls back to the product's own image on the storefront.
+      No photo yet. This variant falls back to the product's own image on the storefront.
     </p>
   </div>
 </template>

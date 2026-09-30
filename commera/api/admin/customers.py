@@ -13,6 +13,7 @@ from commera.api.admin.analytics import (
 	month_key,
 	month_window,
 )
+from commera.api.admin.catalog import get_item_templates_by_item_code
 from commera.api.admin.orders import (
 	describe_payment_state,
 	describe_state,
@@ -20,6 +21,7 @@ from commera.api.admin.orders import (
 	read_order_lifecycles,
 	read_paid_orders,
 )
+from commera.utils import get_item_images
 
 PAGE_LENGTH = 20
 
@@ -273,10 +275,11 @@ def get_top_products(items: list) -> list:
 		for row in frappe.get_all(
 			"Item",
 			filters={"name": ["in", item_codes]},
-			fields=["name", "item_name", "image", "variant_of"],
+			fields=["name", "item_name", "variant_of"],
 		)
 	}
-	template_by_code = read_item_templates(item_codes)
+	template_by_code = get_item_templates_by_item_code(item_codes)
+	image_by_item_code = get_item_images(item_codes)
 
 	return [
 		{
@@ -287,27 +290,10 @@ def get_top_products(items: list) -> list:
 			"name": item_by_code.get(row.item_code, {}).get("item_name") or row.item_code,
 			"units": flt(row.units),
 			"spend": flt(row.spend),
-			"image": item_by_code.get(row.item_code, {}).get("image"),
+			"image": image_by_item_code.get(row.item_code),
 		}
 		for row in items
 	]
-
-
-def read_item_templates(item_codes: list) -> dict:
-	color_size_item = frappe.qb.DocType("Color Size Item")
-	variant = frappe.qb.DocType("Style Attribute Variant")
-	configurator = frappe.qb.DocType("Style Attribute Configurator")
-	rows = (
-		frappe.qb.from_(color_size_item)
-		.join(variant)
-		.on(variant.name == color_size_item.parent)
-		.join(configurator)
-		.on(configurator.name == variant.configurator)
-		.select(color_size_item.item_code, configurator.item_template)
-		.where(color_size_item.parenttype == "Style Attribute Variant")
-		.where(color_size_item.item_code.isin(item_codes))
-	).run()
-	return dict(rows)
 
 
 def get_days_between_orders(lifetime_orders: list) -> int | None:

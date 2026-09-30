@@ -1,11 +1,12 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { Badge, Button, Dropdown, dialog, toast } from 'frappe-ui'
+import { Badge, Button, Dropdown, Tooltip, dialog, toast } from 'frappe-ui'
 import { List, ListCell, ListHeader, ListHeaderCell, ListRow, ListRows } from 'frappe-ui/list'
 import Thumb from './Thumb.vue'
 import EditableValue from './EditableValue.vue'
 import EmptyState from './EmptyState.vue'
 import VariantDialog from './VariantDialog.vue'
+import EditOptionsDialog from './EditOptionsDialog.vue'
 import SwatchDot from './SwatchDot.vue'
 import { useAdminAction, useAdminRead } from '../data/api'
 import { stockTone } from '../data/format'
@@ -19,20 +20,19 @@ const selection = ref([])
 
 // A row opens the variant rather than navigating: a variant is a small record,
 // and you are usually working down the matrix, not away from it.
-const editing = ref(null)
+// Held by name: a save reloads the product with new variant objects, and the
+// open dialog has to follow them rather than keep showing the old photos.
+const editingName = ref(null)
+const editing = computed(() => props.product.variants.find((variant) => variant.name === editingName.value) ?? null)
 const showVariant = ref(false)
 
 function openVariant(variant) {
-  editing.value = variant
+  editingName.value = variant.name
   showVariant.value = true
 }
 
-// Every real option (Style Attribute Variant) already carries its own single
-// attribute value — Color, say — set at product creation. commera has no
-// endpoint to add a further axis to an existing product (create_product only
-// takes option_attribute/size_attribute once, at insert), so unlike the
-// prototype's options[] this list is read-only: it names the one axis this
-// product already has and shows its values, nothing more.
+const showEditOptions = ref(false)
+
 const optionValues = computed(() => [...new Set(props.product.variants.map((v) => v.option))])
 
 const optionValuesRequest = useAdminRead('catalog.get_attribute_values', {
@@ -95,6 +95,13 @@ function publishBlockers(variant) {
   return variant.blockers ?? []
 }
 
+function blockerLabel(variant) {
+  const missing = [!variant.images.length && 'photo', !variant.sizes.length && 'size'].filter(Boolean)
+  if (missing.length === 1) return `Needs a ${missing[0]}`
+  if (missing.length) return `Needs ${missing.join(', ')}`
+  return 'Not ready'
+}
+
 async function togglePublish(variant) {
   await publishAction.submit({ style_attribute_variant: variant.name, publish: variant.is_published ? 0 : 1 })
   // A refusal names the missing photo or size and has already been toasted.
@@ -151,9 +158,14 @@ const columns = ['minmax(7rem,1.3fr)', 'minmax(5rem,1fr)', '6.5rem', '5rem', '4.
   <section class="space-y-5">
     <!-- The axis, first: the matrix below is nothing but its values. -->
     <div id="product-options" class="rounded-5 border border-outline-gray-1">
-      <div class="px-4 py-3">
-        <h2 class="text-lg-semibold text-ink-gray-8">Options</h2>
-        <p class="mt-1 text-p-sm text-ink-gray-5">{{ product.option_attribute ?? 'Option' }}, set at creation.</p>
+      <div class="flex items-start justify-between gap-3 px-4 py-3">
+        <div>
+          <h2 class="text-lg-semibold text-ink-gray-8">Options</h2>
+          <p class="mt-1 text-p-sm text-ink-gray-5">
+            Add a {{ (product.option_attribute ?? 'option').toLowerCase() }} or size, or take one off sale.
+          </p>
+        </div>
+        <Button label="Edit" icon-left="lucide-pencil" @click="showEditOptions = true" />
       </div>
 
       <div v-if="optionValues.length" class="border-t border-outline-gray-1 px-4 py-3">
@@ -277,12 +289,9 @@ const columns = ['minmax(7rem,1.3fr)', 'minmax(5rem,1fr)', '6.5rem', '5rem', '4.
                   theme="green"
                   variant="subtle"
                 />
-                <Badge
-                  v-else-if="publishBlockers(item).length"
-                  :label="publishBlockers(item).join(', ')"
-                  theme="amber"
-                  variant="subtle"
-                />
+                <Tooltip v-else-if="publishBlockers(item).length" :text="publishBlockers(item).join(', ')">
+                  <Badge :label="blockerLabel(item)" theme="amber" variant="subtle" />
+                </Tooltip>
                 <Badge v-else label="Hidden" theme="gray" variant="subtle" />
               </ListCell>
               <ListCell>
@@ -300,11 +309,12 @@ const columns = ['minmax(7rem,1.3fr)', 'minmax(5rem,1fr)', '6.5rem', '5rem', '4.
         compact
         icon="lucide-layers"
         title="No variants yet"
-        description="Variants are the buyable combinations — a colour in a size."
+        description="Variants are the buyable combinations, like a colour in a size."
       />
     </div>
   </section>
 
+  <EditOptionsDialog v-model:open="showEditOptions" :product="product" @saved="emit('saved')" />
   <VariantDialog v-model:open="showVariant" :variant="editing" :product="product" @saved="emit('saved')" />
 </template>
 

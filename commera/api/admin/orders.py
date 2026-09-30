@@ -10,7 +10,7 @@ from frappe.utils.data import add_days, cint, cstr, flt, formatdate, getdate
 from commera.api.admin.catalog import get_unpublishable_options
 from commera.api.admin.inventory import get_inventory
 from commera.api.shipping import get_order_charge_lines
-from commera.utils import get_address_lines
+from commera.utils import get_address_lines, get_item_images
 
 PAGE_LENGTH = 20
 
@@ -628,6 +628,8 @@ def get_order(sales_order: str):
 		):
 			sizes_by_item_code.setdefault(cstr(row.item_code), row.size)
 
+	image_by_item_code = get_item_images(item_codes)
+
 	lifecycle = read_order_lifecycles([order.name]).get(cstr(order.name), frappe._dict())
 	state = describe_state(order, lifecycle)
 	charges = get_order_charges(order)
@@ -670,7 +672,7 @@ def get_order(sales_order: str):
 				"delivered_qty": flt(row.delivered_qty),
 				"rate": flt(row.rate),
 				"amount": flt(row.amount),
-				"image": row.image,
+				"image": row.image or image_by_item_code.get(row.item_code),
 			}
 			for row in items
 		],

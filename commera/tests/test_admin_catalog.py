@@ -10,7 +10,9 @@ from commera.api.admin.catalog import (
 	add_products_to_collection,
 	create_product,
 	delete_product,
+	get_product,
 	get_product_chain,
+	save_product_options,
 	update_product,
 )
 from commera.tests.test_product_onboarding import ProductOnboardingTestCase
@@ -195,3 +197,85 @@ class TestProductCollection(DeleteProductTestCase):
 		):
 			with self.assertRaises(frappe.ValidationError):
 				move()
+
+
+class TestSaveProductOptions(DeleteProductTestCase):
+	def setUp(self):
+		super().setUp()
+		self.item_template = create_product(
+			title=f"Options Product {frappe.generate_hash(length=6).upper()}",
+			collection=self.item_group,
+			option_attribute=self.colour_attribute,
+			size_attribute="Size",
+			option_sizes=[{"option": "Crimson", "sizes": ["S", "M"]}],
+			price=500,
+			sale_price=400,
+		)["name"]
+
+	def get_sizes(self):
+		product = get_product(self.item_template)
+		return {
+			variant["option"]: {size["size"]: size for size in variant["sizes"]}
+			for variant in product["variants"]
+		}
+
+	def test_a_new_size_joins_its_option_in_size_order_at_the_option_price(self):
+		save_product_options(self.item_template, add=[{"option": "Crimson", "size": "XL"}])
+		save_product_options(self.item_template, add=[{"option": "Crimson", "size": "L"}])
+
+		crimson = self.get_sizes()["Crimson"]
+		self.assertEqual(list(crimson), ["S", "M", "L", "XL"])
+		self.assertEqual((crimson["L"]["default_rate"], crimson["L"]["sale_rate"]), (500, 400))
+
+	def test_a_new_option_gets_its_own_storefront_row(self):
+		result = save_product_options(self.item_template, add=[{"option": "Teal", "size": "M"}])
+
+		self.assertEqual(result["created"], 1)
+		teal = self.get_sizes()["Teal"]
+		self.assertEqual(list(teal), ["M"])
+		self.assertEqual(teal["M"]["sale_rate"], 400)
+
+	def test_a_removed_size_is_disabled_and_comes_back_as_the_same_item(self):
+		medium = self.get_sizes()["Crimson"]["M"]["item_code"]
+
+		result = save_product_options(self.item_template, remove=[{"option": "Crimson", "size": "M"}])
+
+		self.assertEqual(result["disabled"], 1)
+		self.assertEqual(list(self.get_sizes()["Crimson"]), ["S"])
+		self.assertEqual(frappe.db.get_value("Item", medium, "disabled"), 1)
+
+		result = save_product_options(self.item_template, add=[{"option": "Crimson", "size": "M"}])
+
+		self.assertEqual((result["created"], result["restored"]), (0, 1))
+		self.assertEqual(self.get_sizes()["Crimson"]["M"]["item_code"], medium)
+		self.assertEqual(frappe.db.get_value("Item", medium, "disabled"), 0)
+
+	def test_a_grid_opened_before_another_save_cannot_undo_it(self):
+		save_product_options(self.item_template, add=[{"option": "Teal", "size": "S"}])
+
+		save_product_options(self.item_template, add=[{"option": "Crimson", "size": "L"}])
+
+		self.assertEqual(list(self.get_sizes()["Teal"]), ["S"])
+
+	def test_an_option_with_every_size_removed_is_emptied_and_unpublished(self):
+		save_product_options(self.item_template, add=[{"option": "Teal", "size": "S"}])
+		teal_row = next(
+			variant["name"]
+			for variant in get_product(self.item_template)["variants"]
+			if variant["option"] == "Teal"
+		)
+		self.add_photo(teal_row)
+		frappe.db.set_value("Style Attribute Variant", teal_row, "is_published", 1)
+
+		save_product_options(self.item_template, remove=[{"option": "Teal", "size": "S"}])
+
+		self.assertEqual(self.get_sizes()["Teal"], {})
+		self.assertEqual(frappe.db.get_value("Style Attribute Variant", teal_row, "is_published"), 0)
+
+	def test_removing_every_variant_is_refused(self):
+		with self.assertRaises(frappe.ValidationError):
+			save_product_options(
+				self.item_template,
+				remove=[{"option": "Crimson", "size": "S"}, {"option": "Crimson", "size": "M"}],
+			)
+		self.assertEqual(set(self.get_sizes()["Crimson"]), {"S", "M"})

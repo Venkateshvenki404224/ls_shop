@@ -15,6 +15,7 @@ import AppsSettings from './AppsSettings.vue'
 import CashOnDeliverySettings from './CashOnDeliverySettings.vue'
 import DeliveryOptionsPanel from './DeliveryOptionsPanel.vue'
 import GeneralSettings from './GeneralSettings.vue'
+import GuestSettings from './GuestSettings.vue'
 import IntegrationTabPanel from './IntegrationTabPanel.vue'
 import LocationsSettings from './LocationsSettings.vue'
 import SettingsPanelHeader from './SettingsPanelHeader.vue'
@@ -57,7 +58,7 @@ watch(
         </SettingsNavItem>
       </SettingsNavGroup>
 
-      <SettingsNavGroup label="Selling">
+      <SettingsNavGroup label="Checkout">
         <SettingsNavItem value="payments">
           <template #prefix><span class="lucide-credit-card size-4" aria-hidden="true" /></template>
           Payments
@@ -79,6 +80,10 @@ watch(
           <template v-if="pickupLocations.pickupEnabled.value" #suffix>
             <span class="text-sm text-ink-gray-5 tabular-nums">{{ pickupLocations.activeCount.value }}</span>
           </template>
+        </SettingsNavItem>
+        <SettingsNavItem value="guest">
+          <template #prefix><span class="lucide-user-round-check size-4" aria-hidden="true" /></template>
+          Guest
         </SettingsNavItem>
       </SettingsNavGroup>
 
@@ -103,6 +108,10 @@ watch(
 
       <SettingsPanel value="locations" class="min-w-0">
         <LocationsSettings :active="settings.open && settings.tab === 'locations'" />
+      </SettingsPanel>
+
+      <SettingsPanel value="guest" class="min-w-0">
+        <GuestSettings :active="settings.open && settings.tab === 'guest'" />
       </SettingsPanel>
 
       <SettingsPanel value="appearance" class="min-w-0">

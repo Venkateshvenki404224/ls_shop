@@ -8,7 +8,7 @@ defineProps({ product: { type: Object, required: true } })
   <section>
     <h2 class="text-lg-semibold text-ink-gray-8">Pricing</h2>
     <p v-if="product.hasVariants" class="mt-1 text-p-sm text-ink-gray-5">
-      This product has variants — price is set per variant below.
+      This product has variants. Price is set per variant below.
     </p>
     <!-- Dead in practice: every real commera product goes through a Style
          Attribute Configurator, so hasVariants is always true. Kept for the

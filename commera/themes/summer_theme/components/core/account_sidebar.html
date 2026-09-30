@@ -30,11 +30,6 @@
 				const path = window.location.pathname.replace(/\/+$/, "");
 				return path === href || path.startsWith(href + "/");
 			},
-
-			async logout() {
-				await frappe_call("/api/v2/method/logout");
-				window.location.href = "/login";
-			},
 		}));
 	});
 </script>
@@ -69,7 +64,7 @@
 					</li>
 					{% endfor %}
 					{% if loop.last %}
-					<li><a href="javascript:void(0);" @click="logout()">{{ _("Log Out") }}</a></li>
+					<li><a href="javascript:void(0);" @click="logout('/login')">{{ _("Log Out") }}</a></li>
 					{% endif %}
 				</ul>
 				{% endfor %}

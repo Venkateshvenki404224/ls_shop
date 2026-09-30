@@ -34,7 +34,7 @@ const listings = computed(() => props.product.variants.filter((variant) => varia
     </div>
 
     <p v-else class="mt-4 text-p-base text-ink-gray-5">
-      No option has a storefront address yet — one is generated when an option is first saved.
+      No option has a storefront address yet. One is generated when an option is first saved.
     </p>
   </section>
 </template>

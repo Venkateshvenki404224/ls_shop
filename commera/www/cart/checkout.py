@@ -4,6 +4,7 @@ from frappe.query_builder import DocType
 
 from commera.api.shipping import get_checkout_summary
 from commera.core import _get_cart_quotation
+from commera.guest import is_guest
 from commera.utils import (
 	format_addresses,
 	get_addresses,
@@ -21,32 +22,18 @@ no_cache = True
 
 
 # @auth_required
-def get_context(context):
-	current_user = frappe.session.user
-	if current_user == "Guest":
-		frappe.redirect(f"/{frappe.local.lang}/cart")
-	cart_quotation = _get_cart_quotation()
-	if not cart_quotation or not cart_quotation.items:
-		frappe.redirect(f"/{frappe.local.lang}/cart")
+def get_context(context, allow_guest: bool = False):
 	commera_settings = frappe.get_cached_doc("Commera Settings")
-	default_price_list = commera_settings.get("default_price_list")
+	if is_guest():
+		if not allow_guest:
+			frappe.redirect(f"/{frappe.local.lang}/cart")
+		set_guest_cart_context(context)
+	else:
+		set_cart_context(context, commera_settings)
+	context.is_guest = is_guest()
 	context.payment_gateways = get_available_payment_modes()
 	context.show_cod = commera_settings.get("cod_enabled", 0)
-	context.cart_quotation = cart_quotation
-	context.checkout_summary = get_checkout_summary(cart_quotation)
-	context.coupon_code = get_coupon_code(cart_quotation)
 	context.country_list = get_country_list()
-	items = get_checkout_items(cart_quotation)
-	if default_price_list:
-		for item in items:
-			item["default_price"] = frappe.get_cached_value(
-				"Item Price",
-				{"item_code": item.item_code, "price_list": default_price_list},
-				"price_list_rate",
-			)
-	context.items = items
-	context.billing_addresses = get_addresses()
-	context.shipping_addresses = get_addresses(address_type="Shipping")
 	context.store_pickup_addresses = (
 		get_store_pickup_addresses() if commera_settings.store_pickup_enabled else []
 	)
@@ -62,6 +49,37 @@ def get_context(context):
 			"href": "#",
 		},
 	]
+
+
+def set_guest_cart_context(context):
+	# The guest's cart lives in the browser until the address step books it to the typed email.
+	context.cart_quotation = None
+	context.checkout_summary = {}
+	context.coupon_code = ""
+	context.items = []
+	context.billing_addresses = []
+	context.shipping_addresses = []
+
+
+def set_cart_context(context, commera_settings):
+	cart_quotation = _get_cart_quotation()
+	if not cart_quotation or not cart_quotation.items:
+		frappe.redirect(f"/{frappe.local.lang}/cart")
+	default_price_list = commera_settings.get("default_price_list")
+	context.cart_quotation = cart_quotation
+	context.checkout_summary = get_checkout_summary(cart_quotation)
+	context.coupon_code = get_coupon_code(cart_quotation)
+	items = get_checkout_items(cart_quotation)
+	if default_price_list:
+		for item in items:
+			item["default_price"] = frappe.get_cached_value(
+				"Item Price",
+				{"item_code": item.item_code, "price_list": default_price_list},
+				"price_list_rate",
+			)
+	context.items = items
+	context.billing_addresses = get_addresses()
+	context.shipping_addresses = get_addresses(address_type="Shipping")
 
 
 def get_coupon_code(cart_quotation):

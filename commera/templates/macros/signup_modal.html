@@ -1,4 +1,4 @@
-{% macro signup_modal() %}
+{% macro signup_modal(mode="auth") %}
 
 <div x-data="{
     is_open: false,
@@ -26,8 +26,8 @@
                 class="flex items-center border-b border-gray-300 bg-gray-50/60 p-4 {% if header_alignment == 'left' %} justify-between {% else %} justify-center {% endif %}">
                 <h3 id="defaultModalTitle" class="font-medium tracking-wide text-lg text-gray-900">{{_("Let's get started")}}</h3>
             </div>
-            <div x-data="{ selected_tab: 'login' }" class="w-full p-2 md:p-10 flex flex-col items-center">
-                <div x-show="!otp_sent" x-on:keydown.right.prevent="$focus.wrap().next()"
+            <div x-data="{ selected_tab: '{{ 'checkout' if mode == 'checkout' else 'login' }}' }" class="w-full p-2 md:p-10 flex flex-col items-center">
+                <div x-show="!otp_sent && selected_tab !== 'checkout'" x-on:keydown.right.prevent="$focus.wrap().next()"
                     x-on:keydown.left.prevent="$focus.wrap().previous()" class="flex w-fit bg-gray-200 rounded-lg p-1"
                     role="tablist" aria-label="tab options">
                     <button x-on:click="selected_tab = 'login'" x-bind:aria-selected="selected_tab === 'login'"
@@ -153,6 +153,25 @@
                                     class="hidden  animate-spin  size-4 border-3 border-current border-t-transparent  rounded-full ms-2"
                                     role="status" aria-label="loading">
                                 </div> </button>
+                        </form>
+                    </div>
+
+                    <div x-cloak x-show="selected_tab === 'checkout' && !otp_sent" role="tabpanel" aria-label="checkout">
+                        <form @submit.prevent="send_checkout_otp($data,$refs)">
+                            <p class="text-sm text-gray-700 mb-3">
+                                {{ _("Enter your email and we'll send you a code to continue.") }}
+                            </p>
+                            <label class="text-xs text-gray-400 mb-1">{{ _('Email') }}*</label>
+                            <input type="email" autocomplete="email"
+                                class="w-full border focus:outline-none px-2 py-1 border-gray-300 text-gray-700 rounded-lg"
+                                placeholder="{{ _('Enter your email') }}" required x-model="email">
+                            <button
+                                class="bg-gray-300 py-2 px-3 rounded-lg mt-6 flex items-center justify-center w-full text-black disabled:opacity-75 cursor-pointer"
+                                type="submit" x-ref="checkout_otp_btn">{{ _('Continue') }} <div
+                                    class="hidden animate-spin size-4 border-3 border-current border-t-transparent rounded-full ms-2"
+                                    role="status" aria-label="loading">
+                                </div>
+                            </button>
                         </form>
                     </div>
 

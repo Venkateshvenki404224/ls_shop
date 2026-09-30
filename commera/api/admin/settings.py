@@ -48,6 +48,8 @@ PAYMENT_FIELDS = (
 	"charge_account_head",
 )
 
+GUEST_FIELDS = ("allow_guest_checkout", "guest_order_link_days")
+
 FOOTER_FIELDS = (
 	"facebook_url",
 	"twitter_url",
@@ -61,8 +63,10 @@ FOOTER_FIELDS = (
 	"vat_certificate_image",
 )
 
-# Fields the four curated tabs own, so the Advanced tab does not render a second copy.
-CURATED_FIELDS = frozenset(STORE_DETAIL_FIELDS + SHIPPING_FIELDS + PAYMENT_FIELDS + FOOTER_FIELDS)
+# Fields the curated tabs own, so the Advanced tab does not render a second copy.
+CURATED_FIELDS = frozenset(
+	STORE_DETAIL_FIELDS + SHIPPING_FIELDS + PAYMENT_FIELDS + GUEST_FIELDS + FOOTER_FIELDS
+)
 
 # Fieldtypes the generic renderer cannot express as one input. Color is skipped for a different
 # reason: colour is moving to the theme, though format_theme_css() still reads these fields.
@@ -193,6 +197,17 @@ def get_payment_settings():
 @frappe.whitelist(methods=["POST"])
 def save_payment_settings(**kwargs):
 	return write_settings_fields(PAYMENT_FIELDS, kwargs)
+
+
+@frappe.whitelist()
+def get_guest_settings():
+	"""Whether shoppers can check out without an account, and how long their order link shows everything."""
+	return read_settings_fields(GUEST_FIELDS)
+
+
+@frappe.whitelist(methods=["POST"])
+def save_guest_settings(**kwargs):
+	return write_settings_fields(GUEST_FIELDS, kwargs)
 
 
 @frappe.whitelist()

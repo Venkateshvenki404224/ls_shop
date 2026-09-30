@@ -16,6 +16,16 @@
 				state.checkout_loading = false;
 			})
 	}
+
+	async function resume_checkout_after_sign_in(state) {
+		const url = new URL(window.location.href);
+		if (!url.searchParams.has("checkout")) return;
+		url.searchParams.delete("checkout");
+		history.replaceState(null, "", url);
+		if ({{ (frappe.session.user != "Guest") | tojson }} && Alpine.store("cart").selected_count) {
+			await proceed_to_checkout(state);
+		}
+	}
 </script>
 
 <div class=" space-y-10" x-data="{ 
@@ -34,7 +44,8 @@
 			show_delivery_charges = false
 		};
 		await $store.cart.fetch_detail_for_cart();
-		cart_loading = false;" x-effect="
+		cart_loading = false;
+		await resume_checkout_after_sign_in($data);" x-effect="
 		cart_total = $store.cart.total;
 		if (delivery_charge_applicable_below > $store.cart.total && delivery_charge > 0 && $store.cart.selected_count > 0) {
 			cart_total = $store.cart.total + delivery_charge;
@@ -228,10 +239,10 @@
 				<div class="w-full">
 					{% if frappe.session.user == "Guest" %}
 
-					{% call signup_modal() %}
+					{% call signup_modal("checkout") %}
 					<span
 						class=" text-white text-base font-semibold uppercase w-full h-12 py-3 bg-accent hover:bg-secondary-accent rounded-lg flex justify-center items-center gap-2.5">
-						{{ _("Login to Checkout") }}
+						{{ _("Checkout") }}
 					</span>
 					{% endcall %}
 					{% else %}

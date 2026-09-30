@@ -6,7 +6,7 @@ from frappe import _
 from frappe.utils import create_batch
 from frappe.utils.data import cint, cstr, flt
 
-from commera.utils import IN_CLAUSE_CHUNK_SIZE
+from commera.utils import IN_CLAUSE_CHUNK_SIZE, get_first_option_photos
 
 PAGE_LENGTH = 50
 LOW_STOCK_THRESHOLD = 5
@@ -53,16 +53,8 @@ def get_inventory(
 	stock_by_item_code = get_size_stock(item_codes)
 	low_level_by_item_code = get_low_stock_levels(item_codes)
 
-	# A dashboard-created variant never sets an Item.image, so the row falls back to its first
-	# option photo - same source and batching catalog.get_products uses for the same reason.
-	first_image_by_variant = {}
-	for row in frappe.get_all(
-		"Website Slideshow Item",
-		filters={"parent": ["in", list(variant_by_name)], "parenttype": "Style Attribute Variant"},
-		fields=["parent", "image"],
-		order_by="idx asc",
-	):
-		first_image_by_variant.setdefault(row.parent, row.image)
+	# A dashboard-created variant never sets an Item.image, so the row falls back to its first option photo.
+	first_image_by_variant = get_first_option_photos(list(variant_by_name))
 
 	rows = []
 	for size in sizes:

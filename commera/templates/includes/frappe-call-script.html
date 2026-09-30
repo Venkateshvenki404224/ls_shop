@@ -50,4 +50,19 @@
 
         return data
     }
+
+    async function logout(redirect_url) {
+        // The admin's theme preview frames the storefront on the same origin, so logging out here would end their Desk session too.
+        if (window.self !== window.top) {
+            toast({{ _("You can't log out from the preview.") | tojson }}, { type: "warning" })
+            return
+        }
+
+        await frappe_call("/api/v2/method/logout")
+        if (redirect_url) {
+            window.location.href = redirect_url
+        } else {
+            window.location.reload()
+        }
+    }
 </script>

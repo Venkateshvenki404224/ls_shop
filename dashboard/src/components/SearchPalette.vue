@@ -16,8 +16,10 @@ import { useAdminRead } from '../data/api'
 import { money, priceRange } from '../data/format'
 import { SETTINGS_TABS, openSettings } from '../ia/settings'
 import { search } from '../ia/search'
+import { customerRoute, orderRoute, productRoute } from '../ia/routes'
 import { openImport } from '../data/importFlow'
 import { openAddProduct } from '../data/addProduct'
+import { confirmInstallDemoData } from '../data/demoData'
 
 const LIMIT = 5
 
@@ -110,6 +112,7 @@ const CREATE = [
   { id: 'new-product', label: 'New product', icon: 'lucide-plus', keywords: ['add', 'create'], run: openAddProduct },
   { id: 'import', label: 'Import products from CSV', icon: 'lucide-upload', keywords: ['csv', 'bulk', 'shopify', 'migrate'], run: openImport },
   { id: 'receive', label: 'Receive stock', icon: 'lucide-package-plus', keywords: ['inward', 'grn'], run: () => router.push('/inventory') },
+  { id: 'demo-data', label: 'Install demo data', icon: 'lucide-database', keywords: ['demo', 'sample', 'seed', 'example'], run: confirmInstallDemoData },
 ]
 
 const SETTINGS = [
@@ -157,9 +160,9 @@ const commandGroups = computed(() => {
 // Every id here is a real record name straight off the admin API — item_template, the Sales
 // Order name, the Customer name — never a display string.
 function onSelect(value) {
-  if (value.kind === 'product') return router.push(`/products/${value.id}`)
-  if (value.kind === 'order') return router.push(`/orders/${value.id}`)
-  if (value.kind === 'customer') return router.push(`/customers/${value.id}`)
+  if (value.kind === 'product') return router.push(productRoute(value.id))
+  if (value.kind === 'order') return router.push(orderRoute(value.id))
+  if (value.kind === 'customer') return router.push(customerRoute(value.id))
   if (value.kind === 'collection') return router.push('/collections')
   ALL.flatMap((group) => group.commands).find((command) => command.id === value.id)?.run()
 }

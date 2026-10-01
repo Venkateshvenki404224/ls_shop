@@ -613,7 +613,16 @@ def get_order(sales_order: str):
 	items = frappe.get_all(
 		"Sales Order Item",
 		filters={"parent": sales_order},
-		fields=["item_code", "item_name", "qty", "delivered_qty", "rate", "amount", "image"],
+		fields=[
+			"item_code",
+			"item_name",
+			"qty",
+			"delivered_qty",
+			"rate",
+			"amount",
+			"image",
+			"delivered_by_supplier",
+		],
 		order_by="idx asc",
 	)
 
@@ -662,7 +671,7 @@ def get_order(sales_order: str):
 		"tags": frappe.get_all(
 			"Tag Link", filters={"document_type": "Sales Order", "document_name": order.name}, pluck="tag"
 		),
-		"can_fulfil": can_fulfil_order(order, state),
+		"can_fulfil": can_fulfil_order(order, state) and has_lines_to_ship(items),
 		"items": [
 			{
 				"item_code": row.item_code,
@@ -764,6 +773,11 @@ def can_fulfil_order(order, state) -> bool:
 	)
 
 
+def has_lines_to_ship(items) -> bool:
+	"""Whether a line the store ships itself is still short. The supplier ships the drop-ship lines."""
+	return any(not row.delivered_by_supplier and flt(row.delivered_qty) < flt(row.qty) for row in items)
+
+
 @frappe.whitelist(methods=["POST"])
 def fulfil_order(sales_order: str):
 	"""Ship what is still outstanding on an order."""
@@ -787,6 +801,10 @@ def fulfil_order(sales_order: str):
 	state = describe_state(order, lifecycle)
 	if state["key"] in SETTLED_STAGES:
 		frappe.throw(_("This order is already {0} and needs nothing shipped.").format(state["label"]))
+	if not has_lines_to_ship(order.items):
+		frappe.throw(
+			_("The supplier delivers the rest of this order. Nothing is left to ship from your warehouse.")
+		)
 
 	delivery_note = make_delivery_note(sales_order)
 	delivery_note.insert()

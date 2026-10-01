@@ -1,7 +1,7 @@
 import frappe
 from frappe.utils import cstr, flt
 
-from commera.utils import get_available_stock, get_discount_percent
+from commera.utils import get_available_stocks, get_discount_percent
 
 DEFAULT_PRODUCT_IMAGE = "/assets/commera/images/1.jpg"
 
@@ -63,11 +63,12 @@ def get_product_detail(route, selected_size=None):
 
 
 def get_available_sizes(product_variant, warehouse):
+	stock_by_item_code = get_available_stocks([size.item_code for size in product_variant.sizes], warehouse)
 	sizes = [
 		{
 			"item_code": size.item_code,
 			"size": size.size,
-			"stock_detail": get_available_stock(size.item_code, warehouse),
+			"stock_detail": stock_by_item_code[cstr(size.item_code)],
 		}
 		for size in product_variant.sizes
 	]

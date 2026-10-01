@@ -557,13 +557,26 @@ def get_available_stock(item_code, warehouse):
 
 
 def get_available_stocks(item_codes, warehouse):
-	"""Sellable qty per item code — two grouped queries for the whole list, not two per item."""
+	"""Sellable qty per item code. A drop-ship item is always in stock; the rest read the warehouse Bin."""
+	from commera.drop_ship import DROP_SHIP_STOCK_QTY, get_drop_ship_item_codes
+
 	if not warehouse:
 		warehouse = "website_warehouse"
 	if not item_codes:
 		return {}
 
 	item_codes = [cstr(item_code) for item_code in item_codes]
+	drop_ship_item_codes = get_drop_ship_item_codes(item_codes)
+	stock_by_item_code = get_warehouse_stocks(
+		[item_code for item_code in item_codes if item_code not in drop_ship_item_codes], warehouse
+	)
+	for item_code in drop_ship_item_codes:
+		stock_by_item_code[item_code] = {"stock_qty": DROP_SHIP_STOCK_QTY, "in_stock": 1}
+	return stock_by_item_code
+
+
+def get_warehouse_stocks(item_codes: list[str], warehouse: str) -> dict:
+	"""Sellable qty per item code — two grouped queries for the whole list, not two per item."""
 	bin_doctype = frappe.qb.DocType("Bin")
 	bin_by_item_code = {}
 	for item_code_chunk in create_batch(item_codes, IN_CLAUSE_CHUNK_SIZE):

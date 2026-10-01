@@ -24,6 +24,7 @@ from commera.api.shipping import (
 )
 from commera.api.signup import get_placeholder_first_name, validate_single_email, validate_user_names
 from commera.core import _get_cart_quotation, create_party, get_customer_contact, new_cart_quotation
+from commera.drop_ship import set_drop_ship_lines
 from commera.guest import (
 	get_guest_cart_name,
 	is_guest,
@@ -325,14 +326,7 @@ def place_order(quotation, payment_mode: str, gateway_amount=None, gateway_refer
 		quotation.flags.ignore_permissions = True
 		quotation.submit()
 
-		sales_order = _make_sales_order(quotation.name, ignore_permissions=True)
-		sales_order.custom_ecommerce_payment_mode = payment_mode
-		copy_delivery_option_to_order(quotation.name, sales_order)
-		fix_payment_schedule_dates(sales_order)
-		set_attribution_fields(sales_order)
-		sales_order.flags.ignore_permissions = True
-		sales_order.insert()
-		set_order_access_key(sales_order)
+		sales_order = make_checkout_sales_order(quotation.name, payment_mode)
 		sales_order.submit()
 
 		if flt(gateway_amount) > 0:
@@ -341,6 +335,20 @@ def place_order(quotation, payment_mode: str, gateway_amount=None, gateway_refer
 	# Outside the switch: log_purchase stamps frappe.session.user, so Administrator would own every purchase.
 	stamp_order_owner(sales_order, shopper)
 	log_purchase(sales_order)
+	return sales_order
+
+
+def make_checkout_sales_order(quotation_name: str, payment_mode: str):
+	"""Insert the Sales Order for a submitted cart Quotation. The one step prepaid and COD checkout share."""
+	sales_order = _make_sales_order(quotation_name, ignore_permissions=True)
+	sales_order.custom_ecommerce_payment_mode = payment_mode
+	copy_delivery_option_to_order(quotation_name, sales_order)
+	fix_payment_schedule_dates(sales_order)
+	set_drop_ship_lines(sales_order)
+	set_attribution_fields(sales_order)
+	sales_order.flags.ignore_permissions = True
+	sales_order.insert()
+	set_order_access_key(sales_order)
 	return sales_order
 
 
@@ -738,12 +746,7 @@ def place_cod_order(quotation_name: str):
 		quotation.flags.ignore_permissions = True
 		quotation.submit()
 
-		sales_order = _make_sales_order(quotation_name, ignore_permissions=True)
-		sales_order.custom_ecommerce_payment_mode = COD_PAYMENT_MODE
-		set_attribution_fields(sales_order)
-		sales_order.flags.ignore_permissions = True
-		sales_order.insert()
-		set_order_access_key(sales_order)
+		sales_order = make_checkout_sales_order(quotation_name, COD_PAYMENT_MODE)
 
 	# COD orders count as purchases even while the Sales Order stays draft.
 	stamp_order_owner(sales_order, shopper)

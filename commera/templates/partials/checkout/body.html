@@ -160,6 +160,10 @@
                 state.errors.push('Please select a valid country in billing address.');
             }
 
+            if (!data.billing_state?.trim()) {
+                state.errors.push('Please fill in the state in billing address.');
+            }
+
             if (!data.billing_phone_number || !/^(\+?\d{1,3}[-.\s]?)?(\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{3,4}$/.test(data.billing_phone_number)) {
                 state.errors.push('Please enter a valid billing phone number.');
             }
@@ -174,6 +178,10 @@
             if (data.shipping_tab === 'new_address') {
                 if (!data.shipping_country) {
                     state.errors.push('Please select a valid country in shipping address.');
+                }
+
+                if (!data.shipping_state?.trim()) {
+                    state.errors.push('Please fill in the state in shipping address.');
                 }
 
                 if (!data.shipping_phone_number || !/^(\+?\d{1,3}[-.\s]?)?(\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{3,4}$/.test(data.shipping_phone_number)) {
@@ -197,6 +205,7 @@
                 full_address: data.billing_tab === 'new_address' ? data.billing_full_address : null,
                 landmark: data.billing_tab === 'new_address' ? data.billing_landmark : null,
                 country: data.billing_tab === 'new_address' ? data.billing_country : null,
+                state: data.billing_tab === 'new_address' ? data.billing_state?.trim() : null,
                 city: data.billing_tab === 'new_address' ? data.billing_city : null,
                 po_box: data.billing_tab === 'new_address' ? data.billing_po_box : null
             },
@@ -210,6 +219,7 @@
                 full_address: data.shipping_tab === 'new_address' ? data.shipping_full_address : null,
                 landmark: data.shipping_tab === 'new_address' ? data.shipping_landmark : null,
                 country: data.shipping_tab === 'new_address' ? data.shipping_country : null,
+                state: data.shipping_tab === 'new_address' ? data.shipping_state?.trim() : null,
                 city: data.shipping_tab === 'new_address' ? data.shipping_city : null,
                 po_box: data.shipping_tab === 'new_address' ? data.shipping_po_box : null
             },

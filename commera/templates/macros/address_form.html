@@ -1,4 +1,4 @@
-{% macro address_form(id='',country_list=[]) %}
+{% macro address_form(id='',country_list=[],indian_states=[]) %}
 <div class="mt-5">
     <h3 class="text-base font-medium capitalize">{{ _('personal information') }}</h3>
     <div class="grid md:grid-cols-2 gap-4 mt-4">
@@ -32,7 +32,7 @@
     </div>
 
     <h3 class="text-base font-medium mt-6">{{ _('Address') }}</h3>
-    <div class="grid md:grid-cols-2 gap-4 mt-2">
+    <div class="grid md:grid-cols-2 gap-4 mt-2" x-data="{ country: '' }" x-on:country-selected="country = $event.detail">
         <div class="col-span-2">
             <label for="{{id}}_full_address" class="block text-xs font-normal text-gray-600 mb-3">
                 {{ _('Address line 1') }}*
@@ -51,6 +51,26 @@
         </div>
         <div class="col-span-2 md:col-span-1">
             {% include 'templates/components/core/country_selector.html' %}
+        </div>
+        <div class="col-span-2 md:col-span-1">
+            <label for="{{id}}_state" class="block text-xs font-normal text-gray-600 mb-3">
+                {{ _('State') }}*
+            </label>
+            <template x-if="country === 'India'">
+                <select id="{{id}}_state" name="{{id}}_state"
+                    class="w-full border-gray-300 rounded-md border bg-white p-2 text-sm text-gray-600 focus:outline-hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black"
+                    x-bind:required="{{id}}_use_address === 'new_address' && show_billing_state === true">
+                    <option value="">{{ _('Select a state') }}</option>
+                    {% for state in indian_states %}
+                    <option value="{{ state }}">{{ state }}</option>
+                    {% endfor %}
+                </select>
+            </template>
+            <template x-if="country !== 'India'">
+                <input type="text" id="{{id}}_state" name="{{id}}_state"
+                    class="w-full border-gray-300 rounded-md border p-2 text-sm text-gray-600 focus:outline-hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black"
+                    x-bind:required="{{id}}_use_address === 'new_address' && show_billing_state === true">
+            </template>
         </div>
         <div class="col-span-2 md:col-span-1">
             <label for="{{id}}_city" class="block text-xs font-normal text-gray-600 mb-3">

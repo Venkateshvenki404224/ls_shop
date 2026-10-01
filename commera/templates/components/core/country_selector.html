@@ -9,6 +9,7 @@
         this.is_open = false
         this.opened_with_keyboard = false
         this.$refs.hidden_text_filed.value = option.name
+        this.$dispatch('country-selected', option.name)
     },
     get_filtered_options(query) {
         this.options = this.all_options.filter((option) =>
@@ -37,7 +38,7 @@
     }
 }" 
     class="flex w-full flex-col " x-on:keydown="handle_key_down_on_options($event)"
-    x-on:keydown.esc.window="is_open = false, opened_with_keyboard = false" x-init="options = all_options">
+    x-on:keydown.esc.window="is_open = false, opened_with_keyboard = false" x-init="options = all_options; $dispatch('country-selected', selected_option.name)">
     <label for="landmark" class="block text-xs font-normal text-gray-600 mb-3">
         {{ _('Country') }}*
     </label>

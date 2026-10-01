@@ -35,7 +35,7 @@
         <div x-show="billing_use_address === 'new_address'" x-collapse.duration.300ms
             x-transition:enter="ease-out duration-200" x-transition:leave="ease-in duration-100" x-cloak
             class="mt-6 space-y-4 origin-top">
-            {{ address_form(id="billing",country_list = country_list) }}
+            {{ address_form(id="billing", country_list=country_list, indian_states=indian_states) }}
         </div>
         <div x-show="billing_use_address === 'saved_address'" x-collapse.duration.300ms
             x-transition:enter="transform transition ease-out duration-200"
@@ -80,7 +80,7 @@
             <div x-show="shipping_use_address === 'new_address'" x-collapse.duration.300ms
                 x-transition:enter="ease-out duration-200" x-transition:leave="ease-in duration-100" x-cloak
                 class="mt-6 space-y-4 origin-top">
-                {{ address_form(id="shipping",country_list=country_list) }}
+                {{ address_form(id="shipping", country_list=country_list, indian_states=indian_states) }}
             </div>
             <div x-show="shipping_use_address === 'saved_address'" x-collapse.duration.300ms
                 x-transition:enter="transform transition ease-out duration-200"

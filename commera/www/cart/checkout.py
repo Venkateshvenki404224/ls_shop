@@ -5,6 +5,7 @@ from frappe.query_builder import DocType
 from commera.api.shipping import get_checkout_summary
 from commera.core import _get_cart_quotation
 from commera.guest import is_guest
+from commera.indian_states import INDIAN_STATES
 from commera.utils import (
 	format_addresses,
 	get_addresses,
@@ -34,6 +35,7 @@ def get_context(context, allow_guest: bool = False):
 	context.payment_gateways = get_available_payment_modes()
 	context.show_cod = commera_settings.get("cod_enabled", 0)
 	context.country_list = get_country_list()
+	context.indian_states = INDIAN_STATES
 	context.store_pickup_addresses = (
 		get_store_pickup_addresses() if commera_settings.store_pickup_enabled else []
 	)

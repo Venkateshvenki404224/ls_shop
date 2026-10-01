@@ -70,3 +70,21 @@ def get_test_configurator() -> str:
 		).insert(ignore_permissions=True)
 
 	return name
+
+
+def create_shopper() -> str:
+	"""A storefront signup: a Website User holding only the Customer role, so no Account read."""
+	email = f"zz-shopper-{frappe.generate_hash(length=8)}@example.com"
+	user = frappe.get_doc(
+		{
+			"doctype": "User",
+			"email": email,
+			"first_name": "ZZ",
+			"last_name": "Shopper",
+			"send_welcome_email": 0,
+			"user_type": "Website User",
+		}
+	)
+	user.append("roles", {"role": "Customer"})
+	user.insert(ignore_permissions=True)
+	return email

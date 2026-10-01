@@ -21,7 +21,7 @@ from commera.api.shipping import get_charge_amount
 from commera.core import _get_cart_quotation
 from commera.install import TEST_ABBR, TEST_COMPANY, TEST_ITEM_GROUP
 from commera.product_detail import get_product_detail
-from commera.tests import get_test_configurator
+from commera.tests import create_shopper, get_test_configurator
 from commera.tests.test_admin_orders import ensure_fiscal_year
 from commera.utils import get_available_stocks
 
@@ -177,7 +177,7 @@ class TestDropShipCheckout(DropShipTestCase):
 		self.warehouse_item = self.create_warehouse_item()
 		for item_code in (self.variant, self.warehouse_item):
 			self.create_sale_price(item_code)
-		self.shopper = self.create_shopper()
+		self.shopper = create_shopper()
 
 	def create_sale_price(self, item_code: str):
 		frappe.get_doc(
@@ -188,22 +188,6 @@ class TestDropShipCheckout(DropShipTestCase):
 				"price_list_rate": ITEM_RATE,
 			}
 		).insert(ignore_permissions=True)
-
-	def create_shopper(self) -> str:
-		email = f"zz-drop-ship-{frappe.generate_hash(length=8)}@example.com"
-		user = frappe.get_doc(
-			{
-				"doctype": "User",
-				"email": email,
-				"first_name": "ZZ Drop Ship",
-				"last_name": "Shopper",
-				"send_welcome_email": 0,
-				"user_type": "Website User",
-			}
-		)
-		user.append("roles", {"role": "Customer"})
-		user.insert(ignore_permissions=True)
-		return email
 
 	def fill_cart(self):
 		"""The shopper's own cart, addressed and ready to pay, holding one line of each kind."""

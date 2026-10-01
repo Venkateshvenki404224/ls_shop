@@ -29,6 +29,7 @@ from commera.api.shipping import (
 	set_delivery_option,
 )
 from commera.core import _get_cart_quotation
+from commera.tests import create_shopper
 from commera.tests.test_admin_orders import ensure_fiscal_year
 from commera.utils import get_pickup_addresses
 from commera.www.cart.checkout import get_context as get_checkout_context
@@ -65,28 +66,11 @@ class TestCartCheckout(IntegrationTestCase):
 
 	def setUp(self):
 		self.addCleanup(frappe.set_user, "Administrator")
-		self.shopper = self.create_shopper()
+		self.shopper = create_shopper()
 		self.discounted_item = self.create_item(sale_rate=SALE_RATE)
 		self.full_price_item = self.create_item(sale_rate=None)
 
 	# -- fixtures ---------------------------------------------------------------------------------
-
-	def create_shopper(self) -> str:
-		"""A storefront signup: a Website User holding only the Customer role, so no Account read."""
-		email = f"zz-shopper-{frappe.generate_hash(length=8)}@example.com"
-		user = frappe.get_doc(
-			{
-				"doctype": "User",
-				"email": email,
-				"first_name": "ZZ Shopper",
-				"last_name": "Checkout",
-				"send_welcome_email": 0,
-				"user_type": "Website User",
-			}
-		)
-		user.append("roles", {"role": "Customer"})
-		user.insert(ignore_permissions=True)
-		return email
 
 	def create_item(self, sale_rate: float | None) -> str:
 		item_code = f"ZZ-CART-{frappe.generate_hash(length=8)}"

@@ -166,7 +166,7 @@ class TestDropShipStock(DropShipTestCase):
 		self.assertEqual(detail["selected_item"]["stock_detail"]["stock_qty"], DROP_SHIP_STOCK_QTY)
 
 
-class TestDropShipCheckout(DropShipTestCase):
+class DropShipCheckoutTestCase(DropShipTestCase):
 	"""A shopper buys a drop-ship variant and a warehouse item in one cart."""
 
 	def setUp(self):
@@ -196,24 +196,35 @@ class TestDropShipCheckout(DropShipTestCase):
 			{"items": [self.cart_line(self.variant, 1), self.cart_line(self.warehouse_item, 2)]}
 		)
 		update_quotation_address(
-			{
-				"billing_address": {
-					"full_address": "1 Billing Street",
-					"city": "Chennai",
-					"country": "India",
-					"phone_number": "+919800000001",
-					"email": self.shopper,
-					"first_name": "ZZ",
-					"last_name": "Shopper",
-				},
-				"shipping_same_as_billing": True,
-			}
+			{"billing_address": self.get_billing_address(), "shipping_same_as_billing": True}
 		)
 		return _get_cart_quotation()
 
-	def place_cod_order(self):
+	def get_billing_address(self) -> dict:
+		return {
+			"full_address": "1 Billing Street",
+			"city": "Chennai",
+			"country": "India",
+			"phone_number": "+919800000001",
+			"email": self.shopper,
+			"first_name": "ZZ",
+			"last_name": "Shopper",
+		}
+
+	def place_cod_order(self, cod_charge: float = 0):
 		quotation = self.fill_cart()
-		frappe.db.set_single_value("Commera Settings", {"cod_enabled": 1, "cod_charge": 0})
+		charge_account_head = frappe.db.get_value(
+			"Account", {"company": TEST_COMPANY, "root_type": "Income", "is_group": 0}, "name"
+		)
+		frappe.db.set_single_value(
+			"Commera Settings",
+			{
+				"cod_enabled": 1,
+				"cod_charge": cod_charge,
+				"cod_charge_applicable_below": 100000,
+				"charge_account_head": charge_account_head,
+			},
+		)
 		frappe.clear_document_cache("Commera Settings", "Commera Settings")
 		self.addCleanup(frappe.clear_document_cache, "Commera Settings", "Commera Settings")
 
@@ -257,6 +268,8 @@ class TestDropShipCheckout(DropShipTestCase):
 	def get_line(self, sales_order, item_code: str):
 		return next(row for row in sales_order.items if row.item_code == item_code)
 
+
+class TestDropShipCheckout(DropShipCheckoutTestCase):
 	def assert_supplier_delivers(self, line):
 		self.assertEqual((line.delivered_by_supplier, line.supplier), (1, self.supplier))
 

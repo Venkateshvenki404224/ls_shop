@@ -104,7 +104,8 @@ importable_doctypes = ["Shop Theme"]
 
 doctype_js = {
 	"Item": ["public/js/extends/item.js", "public/js/extends/ecommerce_tab.js"],
-	"Sales Order": "public/js/extends/sales_order.js",
+	"Sales Order": ["public/js/extends/qikink_indicator.js", "public/js/extends/sales_order.js"],
+	"Purchase Order": ["public/js/extends/qikink_indicator.js", "public/js/extends/purchase_order.js"],
 	"Style Attribute Variant": "public/js/extends/seo_listing.js",
 	"Ecommerce Category": "public/js/extends/seo_listing.js",
 	"Commera Settings": [
@@ -123,6 +124,10 @@ doc_events = {
 	"User": {
 		"before_insert": "commera.utils.prevent_welcome_email",
 	},
+	"Item": {
+		"onload": "commera.qikink.hooks.set_template_drop_ship_onload",
+		"validate": "commera.qikink.hooks.validate_qikink_item",
+	},
 	"Item Group": {
 		"before_validate": "commera.utils.set_item_group_displayname",
 	},
@@ -130,10 +135,12 @@ doc_events = {
 		"on_update": "commera.api.payment_hooks.on_payment_request_update",
 	},
 	"Sales Order": {
+		"onload": "commera.qikink.hooks.set_qikink_order_onload",
 		"after_insert": "commera.jobs.send_order_success_acknowledgement",
 		"on_submit": [
 			"commera.jobs.send_order_success_acknowledgement",
 			"commera.utils.update_so_status_from_related_doc",
+			"commera.qikink.hooks.create_qikink_order",
 		],
 		"on_cancel": [
 			"commera.jobs.send_order_cancel_acknowledgement",
@@ -151,6 +158,7 @@ doc_events = {
 		"after_rename": "commera.search.sync.after_rename",
 		"on_trash": "commera.search.sync.on_trash",
 	},
+	"Purchase Order": {"onload": "commera.qikink.hooks.set_qikink_order_onload"},
 	"Sales Invoice": {"on_submit": "commera.utils.update_so_status_from_related_doc"},
 	"Delivery Note": {
 		"after_insert": "commera.utils.update_so_status_from_related_doc",

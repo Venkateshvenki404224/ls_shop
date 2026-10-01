@@ -2,6 +2,7 @@ frappe.ui.form.on('Sales Order', {
 	async refresh(frm) {
 		// Remove existing button to avoid duplication
 		frm.clear_custom_buttons();
+		commera.qikink.show_indicator(frm);
 		if (frm.doc.docstatus === 0) {
 			return;
 		}

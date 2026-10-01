@@ -1,0 +1,119 @@
+{
+	"actions": [],
+	"autoname": "QK-.#####",
+	"creation": "2026-10-01 23:00:00",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"sales_order",
+		"purchase_order",
+		"order_number",
+		"column_break_qkod",
+		"status",
+		"qikink_order_id",
+		"gateway",
+		"total_order_value"
+	],
+	"fields": [
+		{
+			"fieldname": "sales_order",
+			"fieldtype": "Link",
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"label": "Sales Order",
+			"options": "Sales Order",
+			"read_only": 1,
+			"reqd": 1,
+			"search_index": 1,
+			"unique": 1
+		},
+		{
+			"fieldname": "purchase_order",
+			"fieldtype": "Link",
+			"label": "Purchase Order",
+			"options": "Purchase Order",
+			"read_only": 1,
+			"search_index": 1
+		},
+		{
+			"description": "The order number in the Qikink dashboard.",
+			"fieldname": "order_number",
+			"fieldtype": "Data",
+			"in_list_view": 1,
+			"label": "Order Number",
+			"length": 15,
+			"read_only": 1
+		},
+		{
+			"fieldname": "column_break_qkod",
+			"fieldtype": "Column Break"
+		},
+		{
+			"default": "Queued",
+			"fieldname": "status",
+			"fieldtype": "Select",
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"label": "Status",
+			"options": "Queued\nPushed\nFailed\nNeeds Attention\nCompleted\nCancelled",
+			"read_only": 1
+		},
+		{
+			"fieldname": "qikink_order_id",
+			"fieldtype": "Data",
+			"label": "Qikink Order ID",
+			"read_only": 1
+		},
+		{
+			"fieldname": "gateway",
+			"fieldtype": "Select",
+			"label": "Gateway",
+			"options": "\nCOD\nPrepaid",
+			"read_only": 1
+		},
+		{
+			"description": "The value sent to Qikink.",
+			"fieldname": "total_order_value",
+			"fieldtype": "Currency",
+			"label": "Total Order Value",
+			"read_only": 1
+		}
+	],
+	"in_create": 1,
+	"links": [],
+	"modified": "2026-10-01 23:00:00",
+	"modified_by": "Administrator",
+	"module": "Commera Ecommerce",
+	"name": "Qikink Order",
+	"naming_rule": "Expression (old style)",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"delete": 1,
+			"email": 1,
+			"export": 1,
+			"print": 1,
+			"read": 1,
+			"report": 1,
+			"role": "System Manager",
+			"share": 1,
+			"write": 1
+		},
+		{
+			"email": 1,
+			"export": 1,
+			"print": 1,
+			"read": 1,
+			"report": 1,
+			"role": "Sales Manager",
+			"share": 1,
+			"write": 1
+		}
+	],
+	"search_fields": "sales_order,order_number",
+	"sort_field": "creation",
+	"sort_order": "DESC",
+	"states": [],
+	"title_field": "order_number",
+	"track_changes": 1
+}

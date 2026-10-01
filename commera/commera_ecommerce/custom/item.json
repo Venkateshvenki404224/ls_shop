@@ -17,6 +17,18 @@
 			"label": "Variant Grid",
 			"module": "Commera Ecommerce",
 			"name": "Item-custom_ecommerce_variant_grid"
+		},
+		{
+			"depends_on": "eval:doc.delivered_by_supplier || (doc.__onload && doc.__onload.template_is_drop_ship)",
+			"description": "The SKU of this product in Qikink \"My Products\". A Qikink variant, or a Qikink product without variants, needs one.",
+			"dt": "Item",
+			"fieldname": "custom_qikink_sku",
+			"fieldtype": "Data",
+			"insert_after": "custom_ecommerce_variant_grid",
+			"label": "Qikink SKU",
+			"length": 50,
+			"module": "Commera Ecommerce",
+			"name": "Item-custom_qikink_sku"
 		}
 	],
 	"custom_perms": [],

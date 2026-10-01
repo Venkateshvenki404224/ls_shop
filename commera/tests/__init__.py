@@ -74,17 +74,27 @@ def get_test_configurator() -> str:
 
 def create_shopper() -> str:
 	"""A storefront signup: a Website User holding only the Customer role, so no Account read."""
-	email = f"zz-shopper-{frappe.generate_hash(length=8)}@example.com"
+	return create_user("Shopper", "Website User", "Customer")
+
+
+def create_staff(*roles: str) -> str:
+	"""A Desk user holding only the given roles."""
+	return create_user("Staff", "System User", *roles)
+
+
+def create_user(last_name: str, user_type: str, *roles: str) -> str:
+	email = f"zz-{last_name.lower()}-{frappe.generate_hash(length=8)}@example.com"
 	user = frappe.get_doc(
 		{
 			"doctype": "User",
 			"email": email,
 			"first_name": "ZZ",
-			"last_name": "Shopper",
+			"last_name": last_name,
 			"send_welcome_email": 0,
-			"user_type": "Website User",
+			"user_type": user_type,
 		}
 	)
-	user.append("roles", {"role": "Customer"})
+	for role in roles:
+		user.append("roles", {"role": role})
 	user.insert(ignore_permissions=True)
 	return email

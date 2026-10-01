@@ -1,0 +1,98 @@
+{
+	"actions": [],
+	"creation": "2026-10-01 23:00:00",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"enabled",
+		"sandbox",
+		"client_id",
+		"client_secret",
+		"column_break_qkst",
+		"supplier",
+		"brand_logo",
+		"box_packing",
+		"notify_users"
+	],
+	"fields": [
+		{
+			"default": "0",
+			"description": "Send the Qikink lines of each confirmed order to Qikink.",
+			"fieldname": "enabled",
+			"fieldtype": "Check",
+			"label": "Enabled"
+		},
+		{
+			"default": "1",
+			"description": "Use sandbox.qikink.com instead of api.qikink.com. The client secret is different on each, so enter it again when you switch.",
+			"fieldname": "sandbox",
+			"fieldtype": "Check",
+			"label": "Sandbox"
+		},
+		{
+			"fieldname": "client_id",
+			"fieldtype": "Data",
+			"label": "Client ID"
+		},
+		{
+			"fieldname": "client_secret",
+			"fieldtype": "Password",
+			"label": "Client Secret"
+		},
+		{
+			"fieldname": "column_break_qkst",
+			"fieldtype": "Column Break"
+		},
+		{
+			"description": "The Supplier that stands for Qikink. A drop-ship item with this default supplier is a Qikink item.",
+			"fieldname": "supplier",
+			"fieldtype": "Link",
+			"label": "Supplier",
+			"mandatory_depends_on": "enabled",
+			"options": "Supplier"
+		},
+		{
+			"description": "Qikink puts this logo on every parcel.",
+			"fieldname": "brand_logo",
+			"fieldtype": "Attach Image",
+			"label": "Brand Logo"
+		},
+		{
+			"default": "0",
+			"description": "Ship every Qikink parcel in a box.",
+			"fieldname": "box_packing",
+			"fieldtype": "Check",
+			"label": "Box Packing"
+		},
+		{
+			"description": "These users get the Qikink alerts.",
+			"fieldname": "notify_users",
+			"fieldtype": "Table MultiSelect",
+			"label": "Notify Users",
+			"options": "Qikink Notify User"
+		}
+	],
+	"issingle": 1,
+	"links": [],
+	"make_attachments_public": 1,
+	"modified": "2026-10-01 23:00:01",
+	"modified_by": "Administrator",
+	"module": "Commera Ecommerce",
+	"name": "Qikink Settings",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"email": 1,
+			"print": 1,
+			"read": 1,
+			"role": "System Manager",
+			"share": 1,
+			"write": 1
+		}
+	],
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"states": []
+}

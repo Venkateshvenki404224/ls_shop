@@ -1,6 +1,7 @@
 import frappe
 from frappe import _
 
+from commera.commera_ecommerce.doctype.qikink_order.qikink_order import PUSHABLE_STATES
 from commera.qikink.items import get_qikink_lines, is_qikink_item, is_template_drop_ship
 
 
@@ -37,4 +38,5 @@ def set_qikink_order_onload(doc, method=None) -> None:
 		"Qikink Order", {link_field: doc.name}, ["name", "order_number", "status"], as_dict=True
 	)
 	if qikink_order:
+		qikink_order.is_pushable = qikink_order.status in PUSHABLE_STATES
 		doc.set_onload("qikink_order", qikink_order)

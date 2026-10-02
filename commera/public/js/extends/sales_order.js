@@ -3,6 +3,7 @@ frappe.ui.form.on('Sales Order', {
 		// Remove existing button to avoid duplication
 		frm.clear_custom_buttons();
 		commera.qikink.show_indicator(frm);
+		commera.qikink.add_push_button(frm);
 		if (frm.doc.docstatus === 0) {
 			return;
 		}

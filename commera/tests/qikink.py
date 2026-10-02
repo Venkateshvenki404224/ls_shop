@@ -11,6 +11,7 @@ CLIENT_SECRET = "zz-qikink-client-secret"
 QIKINK_ORDER_ID = 1234567890
 TOKEN_PATH = "/api/token"
 CREATE_ORDER_PATH = "/api/order/create"
+ORDER_LIST_PATH = "/api/order/list"
 
 
 def configure_qikink(testcase, supplier: str | None, **values) -> None:
@@ -42,6 +43,8 @@ class FakeQikink:
 		self.requests: list[frappe._dict] = []
 		self.token_expires_in = 3600
 		self.create_replies: list[requests.Response | Exception] = []
+		# The orders Qikink holds, as the order list shows them.
+		self.orders: list[dict] = []
 
 	def request(self, method: str, url: str, **kwargs) -> requests.Response:
 		self.requests.append(frappe._dict(method=method, url=url, **kwargs))
@@ -57,6 +60,8 @@ class FakeQikink:
 			)
 		if path == CREATE_ORDER_PATH:
 			return self.get_create_reply()
+		if path == ORDER_LIST_PATH:
+			return self.get_order_list(kwargs["params"])
 		raise AssertionError(f"Qikink has no {method} {url}")
 
 	def get_requests(self, path: str) -> list[frappe._dict]:
@@ -73,9 +78,19 @@ class FakeQikink:
 			raise reply
 		return reply
 
+	def add_order(self, order_number: str, order_id: int) -> None:
+		# Qikink puts the account number in front of the order number.
+		self.orders.append({"order_id": order_id, "number": f"1_{order_number}", "status": "Live"})
 
-def make_reply(status_code: int, body: dict) -> requests.Response:
+	def get_order_list(self, params: dict) -> requests.Response:
+		reference = params["order_reference_no"]
+		orders = [order for order in self.orders if order["number"].endswith(f"_{reference}")]
+		return make_reply(200, {"success": True, "data": orders[:10]})
+
+
+def make_reply(status_code: int, body: dict | str) -> requests.Response:
+	"""A reply with a JSON body, or with the text as it stands."""
 	reply = requests.Response()
 	reply.status_code = status_code
-	reply._content = json.dumps(body).encode()
+	reply._content = (body if isinstance(body, str) else json.dumps(body)).encode()
 	return reply

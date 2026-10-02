@@ -453,6 +453,9 @@ scheduler_events = {
 	"hourly_long": [
 		"commera.jobs.sync_pending_gateway_payments",
 	],
+	"cron": {
+		"*/30 * * * *": ["commera.qikink.jobs.queue_qikink_sync"],
+	},
 	"daily": [
 		"commera.jobs.delete_notified_oos",
 		"commera.jobs.delete_old_draft_quotations",

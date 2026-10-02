@@ -1,30 +1,49 @@
 import re
 
 import frappe
+from frappe import _
 from frappe.utils import cint, cstr, flt, get_url
 
 from commera.api.payments import is_cod
+from commera.indian_states import INDIAN_STATES
 
 ADDRESS1_LENGTH = 90
+MAX_LINE_QUANTITY = 100
+
+
+class QikinkDataError(frappe.ValidationError):
+	"""The order lacks data that Qikink needs. Staff fix the data, then push again."""
 
 
 def get_order_body(qikink_order) -> dict:
-	"""The Qikink create-order body: the Purchase Order lines at the prices the customer paid."""
+	"""The Qikink create-order body: the Purchase Order lines at the prices the customer paid.
+
+	Raises QikinkDataError, naming each fix, when Qikink would refuse the body.
+	"""
 	settings = frappe.get_cached_doc("Qikink Settings")
 	purchase_order = frappe.get_doc("Purchase Order", qikink_order.purchase_order)
 	sales_order = frappe.get_doc("Sales Order", qikink_order.sales_order)
+	if not purchase_order.shipping_address:
+		raise QikinkDataError(_("Set the shipping address of {0}.").format(sales_order.name))
+	address = frappe.get_doc("Address", purchase_order.shipping_address)
 	sales_lines = {row.name: row for row in sales_order.items}
 	ordered_lines = [(row, sales_lines[row.sales_order_item]) for row in purchase_order.items]
-	return {
+	body = {
 		"order_number": qikink_order.order_number,
 		"qikink_shipping": 1,
 		"gateway": "COD" if is_cod(sales_order.custom_ecommerce_payment_mode) else "Prepaid",
 		"total_order_value": get_total_order_value(sales_order, [line for _, line in ordered_lines]),
 		"line_items": get_line_items(ordered_lines),
-		"shipping_address": get_shipping_address(purchase_order),
+		"shipping_address": get_shipping_address(purchase_order, address),
 		"add_ons": [{"box_packing": cint(settings.box_packing)}],
 		"brand_logo": get_url(settings.brand_logo) if settings.brand_logo else 0,
 	}
+	problems = get_line_problems(ordered_lines, body["line_items"]) + get_address_problems(
+		address, body["shipping_address"]
+	)
+	if problems:
+		raise QikinkDataError(" ".join(problems))
+	return body
 
 
 def get_total_order_value(sales_order, qikink_lines: list) -> float:
@@ -53,8 +72,7 @@ def get_line_items(ordered_lines: list) -> list[dict]:
 	]
 
 
-def get_shipping_address(purchase_order) -> dict:
-	address = frappe.get_doc("Address", purchase_order.shipping_address)
+def get_shipping_address(purchase_order, address) -> dict:
 	address_line = cstr(address.address_line1)
 	overflow = (address_line[ADDRESS1_LENGTH:].strip(), cstr(address.address_line2).strip())
 	country_code = cstr(frappe.db.get_value("Country", address.country, "code")).upper()
@@ -71,6 +89,39 @@ def get_shipping_address(purchase_order) -> dict:
 		"province": address.state,
 		"country_code": country_code,
 	}
+
+
+def get_line_problems(ordered_lines: list, line_items: list[dict]) -> list[str]:
+	problems = []
+	for (row, _sales_line), line in zip(ordered_lines, line_items, strict=True):
+		if not line["sku"]:
+			problems.append(_("Set the Qikink SKU of {0}.").format(row.item_code))
+		if line["quantity"] > MAX_LINE_QUANTITY:
+			problems.append(
+				_("Qikink takes at most {0} of {1} in one order.").format(MAX_LINE_QUANTITY, row.item_code)
+			)
+	return problems
+
+
+def get_address_problems(address, shipping_address: dict) -> list[str]:
+	state = shipping_address["province"]
+	problems = []
+	if not state:
+		problems.append(_("Set the state of the shipping address {0}.").format(address.name))
+	elif shipping_address["country_code"] == "IN" and state not in INDIAN_STATES:
+		problems.append(
+			_("{0} is not an Indian state. Correct the shipping address {1}.").format(state, address.name)
+		)
+	# The zip keeps only the digits: a dropped space is harmless, a dropped letter is not.
+	if not re.fullmatch(r"\d+", re.sub(r"\s", "", cstr(address.pincode))):
+		problems.append(_("Set a pincode of digits only on the shipping address {0}.").format(address.name))
+	if not shipping_address["phone"]:
+		problems.append(_("Set a phone number on the shipping address {0}.").format(address.name))
+	if not shipping_address["email"]:
+		problems.append(_("Set an email address on the shipping address {0}.").format(address.name))
+	if not shipping_address["country_code"]:
+		problems.append(_("Set the code of the country {0}.").format(address.country))
+	return problems
 
 
 def get_consignee_name(purchase_order) -> tuple[str, str]:

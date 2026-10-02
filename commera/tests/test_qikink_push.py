@@ -83,6 +83,11 @@ class QikinkPushTestCase(DropShipCheckoutTestCase):
 		sales_order.submit()
 		return sales_order
 
+	def get_form_onload(self, doctype: str, name: str) -> dict:
+		frappe.local.response = frappe._dict(docs=[])
+		getdoc(doctype, name)
+		return frappe.response.docs[0].get_onload()
+
 	def assert_nothing_goes_to_qikink(self, sales_order):
 		self.assertFalse(frappe.db.exists("Qikink Order", {"sales_order": sales_order.name}))
 		self.assertFalse(frappe.db.exists("Purchase Order Item", {"sales_order": sales_order.name}))
@@ -406,8 +411,7 @@ class TestQikinkClient(QikinkPushTestCase):
 			make_reply(400, {"error": "Missing field: phone", "status_code": "400"})
 		]
 
-		with self.assertRaises(requests.HTTPError):
-			self.push(self.place_prepaid_order())
+		self.push(self.place_prepaid_order())
 
 		log = self.get_create_log()
 		self.assertEqual(
@@ -417,8 +421,7 @@ class TestQikinkClient(QikinkPushTestCase):
 	def test_a_call_that_times_out_logs_the_timeout(self):
 		self.qikink.create_replies = [requests.Timeout("Read timed out")]
 
-		with self.assertRaises(requests.Timeout):
-			self.push(self.place_prepaid_order())
+		self.push(self.place_prepaid_order())
 
 		log = self.get_create_log()
 		self.assertEqual((log.error, log.status), ("Timeout", "Failed"))
@@ -426,11 +429,6 @@ class TestQikinkClient(QikinkPushTestCase):
 
 class TestQikinkIndicator(QikinkPushTestCase):
 	"""Staff open the Qikink Order from the Sales Order and the Purchase Order."""
-
-	def get_form_onload(self, doctype: str, name: str) -> dict:
-		frappe.local.response = frappe._dict(docs=[])
-		getdoc(doctype, name)
-		return frappe.response.docs[0].get_onload()
 
 	def test_the_order_forms_link_to_the_qikink_order(self):
 		sales_order = self.place_prepaid_order()
@@ -442,7 +440,12 @@ class TestQikinkIndicator(QikinkPushTestCase):
 		):
 			self.assertEqual(
 				self.get_form_onload(doctype, name).get("qikink_order"),
-				{"name": qikink_order.name, "order_number": qikink_order.order_number, "status": "Pushed"},
+				{
+					"name": qikink_order.name,
+					"order_number": qikink_order.order_number,
+					"status": "Pushed",
+					"is_pushable": False,
+				},
 			)
 
 	def test_a_user_who_cannot_open_qikink_orders_sees_no_link(self):

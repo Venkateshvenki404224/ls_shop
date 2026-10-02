@@ -7,6 +7,7 @@ from frappe.tests import IntegrationTestCase
 from frappe.utils.password import get_decrypted_password
 
 from commera.install import TEST_COMPANY
+from commera.patches import stop_copying_qikink_sku_to_variants
 from commera.tests import create_staff
 from commera.tests.qikink import CLIENT_SECRET, SETTINGS, configure_qikink
 from commera.tests.test_drop_ship import DropShipTestCase
@@ -98,6 +99,32 @@ class TestQikinkItem(DropShipTestCase):
 
 		variant.custom_qikink_sku = "ZZ-SKU-S"
 		variant.insert(ignore_permissions=True)
+
+	def test_a_template_save_keeps_the_qikink_sku_of_each_variant(self):
+		# The ERPNext setup wizard builds the copy list from the Item fields.
+		variant_settings = frappe.get_doc("Item Variant Settings")
+		variant_settings.set_default_fields()
+		variant_settings.save(ignore_permissions=True)
+
+		self.assertEqual(self.get_variant_sku_after_template_save(), "ZZ-SKU-S")
+
+	def test_the_patch_stops_a_set_up_site_copying_the_qikink_sku_to_variants(self):
+		variant_settings = frappe.get_doc("Item Variant Settings")
+		variant_settings.append("fields", {"field_name": "custom_qikink_sku"})
+		variant_settings.save(ignore_permissions=True)
+
+		stop_copying_qikink_sku_to_variants.execute()
+
+		self.assertEqual(self.get_variant_sku_after_template_save(), "ZZ-SKU-S")
+
+	def get_variant_sku_after_template_save(self) -> str | None:
+		variant = self.new_variant()
+		variant.custom_qikink_sku = "ZZ-SKU-S"
+		variant.insert(ignore_permissions=True)
+
+		frappe.get_doc("Item", variant.variant_of).save(ignore_permissions=True)
+
+		return frappe.db.get_value("Item", variant.name, "custom_qikink_sku")
 
 	def test_a_qikink_product_without_variants_needs_a_qikink_sku(self):
 		with self.assertRaisesRegex(frappe.ValidationError, "Qikink SKU"):

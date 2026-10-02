@@ -28,7 +28,8 @@
 			"label": "Qikink SKU",
 			"length": 50,
 			"module": "Commera Ecommerce",
-			"name": "Item-custom_qikink_sku"
+			"name": "Item-custom_qikink_sku",
+			"no_copy": 1
 		}
 	],
 	"custom_perms": [],

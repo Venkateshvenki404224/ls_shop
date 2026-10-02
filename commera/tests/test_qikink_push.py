@@ -296,14 +296,27 @@ class TestQikinkPush(QikinkPushTestCase):
 		self.push(self.place_prepaid_order())
 
 		body = self.get_create_body()
-		self.assertEqual(body["add_ons"], [{"box_packing": 1}])
+		self.assertEqual(
+			body["add_ons"], [{"box_packing": 1, "gift_wrap": 0, "rush_order": 0, "custom_letter": 0}]
+		)
 		self.assertRegex(body["brand_logo"], r"^https?://[^/]+/files/zz-brand-logo\.png$")
 
-	def test_an_order_without_a_brand_logo_sends_0(self):
+	def test_an_order_without_a_brand_logo_sends_no_brand_logo(self):
 		self.push(self.place_prepaid_order())
 
 		body = self.get_create_body()
-		self.assertEqual((body["add_ons"], body["brand_logo"]), ([{"box_packing": 0}], 0))
+		self.assertEqual(
+			body["add_ons"], [{"box_packing": 0, "gift_wrap": 0, "rush_order": 0, "custom_letter": 0}]
+		)
+		self.assertNotIn("brand_logo", body)
+
+	def test_an_indian_phone_with_a_leading_0_goes_as_its_10_digits(self):
+		sales_order = self.place_prepaid_order()
+		frappe.db.set_value("Address", sales_order.shipping_address_name, "phone", "098400 12345")
+
+		self.push(sales_order)
+
+		self.assertEqual(self.get_create_body()["shipping_address"]["phone"], "9840012345")
 
 	def test_an_order_without_a_contact_ships_to_the_customer_name(self):
 		sales_order = self.place_prepaid_order()

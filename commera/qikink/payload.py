@@ -35,9 +35,14 @@ def get_order_body(qikink_order) -> dict:
 		"total_order_value": get_total_order_value(sales_order, [line for _, line in ordered_lines]),
 		"line_items": get_line_items(ordered_lines),
 		"shipping_address": get_shipping_address(purchase_order, address),
-		"add_ons": [{"box_packing": cint(settings.box_packing)}],
-		"brand_logo": get_url(settings.brand_logo) if settings.brand_logo else 0,
+		# Qikink refuses an add-on flag that is missing, though its docs read a missing flag as off.
+		"add_ons": [
+			{"box_packing": cint(settings.box_packing), "gift_wrap": 0, "rush_order": 0, "custom_letter": 0}
+		],
 	}
+	# Qikink refuses `"brand_logo": 0` as an unexpected field, though its docs allow it.
+	if settings.brand_logo:
+		body["brand_logo"] = get_url(settings.brand_logo)
 	problems = get_line_problems(ordered_lines, body["line_items"]) + get_address_problems(
 		address, body["shipping_address"]
 	)
@@ -137,9 +142,11 @@ def get_consignee_name(purchase_order) -> tuple[str, str]:
 
 def get_phone_number(phone: str | None, country_code: str) -> str:
 	digits = get_digits(phone)
-	# Qikink takes an Indian number as its 10 digits, without the 91 country code.
-	if country_code == "IN" and len(digits) == 12 and digits.startswith("91"):
-		return digits[2:]
+	# Qikink takes an Indian number as its 10 digits, without the 91 country code or the 0 trunk prefix.
+	if country_code == "IN" and (
+		(len(digits) == 12 and digits.startswith("91")) or (len(digits) == 11 and digits.startswith("0"))
+	):
+		return digits[-10:]
 	return digits
 
 

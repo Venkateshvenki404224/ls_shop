@@ -52,6 +52,7 @@ STATUS_GROUPS = (
 	(("Delivered", "Self collect"), RemoteStatus("Completed", "Delivered")),
 	(("Returned",), RemoteStatus("Completed", "Returned")),
 	(("Partially Returned",), RemoteStatus("Completed", "Partially Returned")),
+	(("Cancelled",), RemoteStatus("Cancelled", None)),
 	(
 		(
 			"Out Of Stock",

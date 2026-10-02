@@ -29,6 +29,20 @@ def create_qikink_order(sales_order, method=None) -> None:
 	qikink_order.queue_push()
 
 
+def cancel_qikink_order_with_sales_order(sales_order, method=None) -> None:
+	"""Cancel the Qikink Order with its Sales Order, or refuse while its Purchase Order is open."""
+	qikink_order = frappe.db.get_value("Qikink Order", {"sales_order": sales_order.name})
+	if qikink_order:
+		frappe.get_doc("Qikink Order", qikink_order).cancel_with_sales_order()
+
+
+def cancel_qikink_order_with_purchase_order(purchase_order, method=None) -> None:
+	"""Cancel the Qikink Order with its Purchase Order, or refuse while Qikink has the order."""
+	qikink_order = frappe.db.get_value("Qikink Order", {"purchase_order": purchase_order.name})
+	if qikink_order:
+		frappe.get_doc("Qikink Order", qikink_order).cancel_with_purchase_order()
+
+
 def set_qikink_order_onload(doc, method=None) -> None:
 	"""Hand the Sales Order or Purchase Order form its Qikink Order, for the Qikink indicator."""
 	if not frappe.has_permission("Qikink Order", "read"):

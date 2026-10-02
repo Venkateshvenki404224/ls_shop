@@ -5,6 +5,7 @@ import frappe
 from erpnext.selling.doctype.sales_order.sales_order import make_purchase_order
 from frappe import _
 from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
+from frappe.model.docstatus import DocStatus
 from frappe.model.document import Document
 from frappe.utils import cstr, get_datetime, get_url_to_form, now_datetime, validate_url
 
@@ -123,9 +124,41 @@ class QikinkOrder(Document):
 			self.fail(str(error))
 		self.save(ignore_permissions=True)
 
+	def cancel_with_sales_order(self) -> None:
+		"""Stop the push. ERPNext would only unlink a submitted Purchase Order, and Qikink would still ship it."""
+		self.reload_for_update()
+		if (
+			self.purchase_order
+			and frappe.db.get_value("Purchase Order", self.purchase_order, "docstatus") == DocStatus.SUBMITTED
+		):
+			frappe.throw(_("Cancel the Qikink Purchase Order {0} first.").format(self.purchase_order))
+		self.status = "Cancelled"
+		self.save(ignore_permissions=True)
+
+	def cancel_with_purchase_order(self) -> None:
+		"""Agree to the cancel of the Purchase Order only while Qikink does not have the order."""
+		self.reload_for_update()
+		if self.status == "Cancelled":
+			return
+		try:
+			# A push that failed may have reached Qikink, though its reply never came.
+			has_qikink_order = bool(self.qikink_order_id or self.get_earlier_qikink_order(QikinkClient()))
+		except QikinkUnavailableError as error:
+			frappe.throw(str(error))
+		# Qikink has no cancel call, so staff cancel there and the sync cancels here.
+		if has_qikink_order:
+			frappe.throw(
+				_(
+					"Cancel {0} in the Qikink dashboard first. Then click Sync now on the Qikink Order."
+				).format(self.order_number)
+			)
+		self.status = "Cancelled"
+		self.save(ignore_permissions=True)
+
 	def reload_for_update(self) -> None:
-		"""Lock the row, then read it again: a cancel, a push or a sync may have changed it meanwhile."""
-		frappe.db.get_value(self.doctype, self.name, "name", for_update=True)
+		"""Lock the row and read its latest version: a cancel, a push or a sync may have changed it meanwhile."""
+		# A plain read after the lock would see the snapshot of the transaction's first read.
+		self.flags.for_update = True
 		self.reload()
 
 	@frappe.whitelist(methods=["POST"])
@@ -168,6 +201,9 @@ class QikinkOrder(Document):
 		if remote_order["status"] != self.qikink_status:
 			self.record_status_change(remote_order, remote_status)
 		self.save(ignore_permissions=True)
+		# After the save: the cancel of the Purchase Order reads the Cancelled state from the row.
+		if self.status == "Cancelled":
+			self.cancel_purchase_order()
 		# After the save: an order that fails to save is tried again, and must not alert again.
 		if is_new_problem:
 			self.send_alert(
@@ -207,6 +243,11 @@ class QikinkOrder(Document):
 			]
 			if undelivered_lines:
 				purchase_order.update_dropship_received_qty(undelivered_lines)
+
+	def cancel_purchase_order(self) -> None:
+		"""Cancel as Administrator: the staff member who clicks "Sync now" may not cancel Purchase Orders."""
+		with system_user_session():
+			frappe.get_doc("Purchase Order", self.purchase_order).cancel()
 
 	def send_to_qikink(self) -> None:
 		if not self.purchase_order:

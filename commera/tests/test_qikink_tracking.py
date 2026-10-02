@@ -64,6 +64,14 @@ class TestQikinkOnlyOrderStatus(QikinkOnlyTestCase):
 		self.assertEqual(qikink_order.status, "Needs Attention")
 		self.assertEqual(self.get_ecommerce_status(qikink_order), "Shipped")
 
+	def test_a_cancel_at_qikink_leaves_the_order_status_as_it_is(self):
+		qikink_order = self.sync_status(self.place_pushed_order(), "Dispatch Ready")
+
+		qikink_order = self.sync_status(qikink_order, "Cancelled")
+
+		self.assertEqual(qikink_order.status, "Cancelled")
+		self.assertEqual(self.get_ecommerce_status(qikink_order), "Preparing for Shipment")
+
 	def test_a_parcel_that_comes_back_returns_the_order(self):
 		for qikink_status in ("Returned", "Partially Returned"):
 			with self.subTest(qikink_status=qikink_status):

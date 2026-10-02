@@ -142,6 +142,7 @@ doc_events = {
 			"commera.utils.update_so_status_from_related_doc",
 			"commera.qikink.hooks.create_qikink_order",
 		],
+		"before_cancel": "commera.qikink.hooks.cancel_qikink_order_with_sales_order",
 		"on_cancel": [
 			"commera.jobs.send_order_cancel_acknowledgement",
 			"commera.utils.update_so_status_from_related_doc",
@@ -158,7 +159,10 @@ doc_events = {
 		"after_rename": "commera.search.sync.after_rename",
 		"on_trash": "commera.search.sync.on_trash",
 	},
-	"Purchase Order": {"onload": "commera.qikink.hooks.set_qikink_order_onload"},
+	"Purchase Order": {
+		"onload": "commera.qikink.hooks.set_qikink_order_onload",
+		"before_cancel": "commera.qikink.hooks.cancel_qikink_order_with_purchase_order",
+	},
 	"Sales Invoice": {"on_submit": "commera.utils.update_so_status_from_related_doc"},
 	"Delivery Note": {
 		"after_insert": "commera.utils.update_so_status_from_related_doc",

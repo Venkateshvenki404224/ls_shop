@@ -460,33 +460,54 @@ def copy_delivery_option_to_order(quotation_name: str, sales_order) -> None:
 @frappe.whitelist(allow_guest=True)  # nosemgrep: guest-whitelisted-method
 @rate_limit(limit=120, seconds=60 * 60)
 def get_order_tracking(sales_order: str, key: str | None = None) -> dict:
-	"""Customer-facing tracking for one of their own orders, or one whose private link they hold."""
+	"""Customer-facing tracking for one of their own orders, or one whose private link they hold.
+
+	The top-level keys show the first parcel that has an AWB. `shipments` shows each parcel.
+	"""
 	validate_document_access("Sales Order", sales_order, key)
 
+	shipments = get_order_shipments(sales_order)
+	tracked_shipment = next((shipment for shipment in shipments if shipment.awb), None)
+	if not tracked_shipment:
+		return {"has_tracking": False, "shipments": shipments}
+	return {"has_tracking": True, **tracked_shipment, "shipments": shipments}
+
+
+def get_order_shipments(sales_order: str) -> list[frappe._dict]:
+	"""Each parcel of the order: the latest carrier booking of the warehouse lines, then the Qikink parcel."""
 	if not is_connector_installed():
-		return {"has_tracking": False}
+		return []
 
-	shipment = frappe.get_all(
+	shipments = []
+	if carrier_booking := frappe.db.get_value(
 		"Shipping Request",
-		filters={"ref_doctype": "Sales Order", "ref_docname": sales_order},
-		fields=["name", "awb", "carrier", "status", "label_url"],
+		{"ref_doctype": "Sales Order", "ref_docname": sales_order},
+		["name", "awb", "carrier", "status"],
+		as_dict=True,
 		order_by="creation desc",
-		limit=1,
-	)
-	if not shipment or not shipment[0].awb:
-		return {"has_tracking": False}
+	):
+		shipments.append(get_shipment("Shipping Request", carrier_booking))
+	if qikink_order := frappe.db.get_value(
+		"Qikink Order",
+		{"sales_order": sales_order},
+		["name", "awb", "courier as carrier", "qikink_status as status", "tracking_link"],
+		as_dict=True,
+	):
+		shipments.append(get_shipment("Qikink Order", qikink_order))
+	return shipments
 
-	request = shipment[0]
+
+def get_shipment(doctype: str, parcel: frappe._dict) -> frappe._dict:
 	events = frappe.get_all(
 		"Shipping Tracking Event",
-		filters={"parent": request.name, "parenttype": "Shipping Request"},
+		filters={"parent": parcel.name, "parenttype": doctype},
 		fields=["timestamp", "status", "location", "message"],
 		order_by="timestamp desc",
 	)
-	return {
-		"has_tracking": True,
-		"awb": request.awb,
-		"carrier": request.carrier,
-		"status": request.status,
-		"events": events,
-	}
+	return frappe._dict(
+		awb=parcel.awb,
+		carrier=parcel.carrier,
+		status=parcel.status,
+		tracking_link=parcel.get("tracking_link"),
+		events=events,
+	)

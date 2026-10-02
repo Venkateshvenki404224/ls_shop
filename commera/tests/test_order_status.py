@@ -36,6 +36,20 @@ def deliver(sales_order, submit=True):
 	return delivery_note
 
 
+def book_parcel(sales_order_name: str, status: str, **values):
+	"""The carrier booking of the order, as the carrier reports it."""
+	frappe.get_doc(
+		{
+			"doctype": "Shipping Request",
+			"name": frappe.generate_hash(length=10),
+			"ref_doctype": "Sales Order",
+			"ref_docname": sales_order_name,
+			"status": status,
+			**values,
+		}
+	).db_insert()
+
+
 class TestOrderStatus(IntegrationTestCase):
 	def make_return(self, delivery_note, qty=None):
 		sales_return = make_sales_return(delivery_note.name)
@@ -45,17 +59,6 @@ class TestOrderStatus(IntegrationTestCase):
 		sales_return.insert()
 		sales_return.submit()
 		return sales_return
-
-	def book_parcel(self, sales_order, status):
-		frappe.get_doc(
-			{
-				"doctype": "Shipping Request",
-				"name": frappe.generate_hash(length=10),
-				"ref_doctype": "Sales Order",
-				"ref_docname": sales_order.name,
-				"status": status,
-			}
-		).db_insert()
 
 	def status_of(self, sales_order):
 		update_sales_order_ecommerce_status(sales_order.name)
@@ -79,7 +82,7 @@ class TestOrderStatus(IntegrationTestCase):
 	def test_a_booked_parcel_holds_the_order_until_the_carrier_moves_it(self):
 		sales_order = make_paid_order()
 		deliver(sales_order)
-		self.book_parcel(sales_order, "Ready To Ship")
+		book_parcel(sales_order.name, "Ready To Ship")
 		self.assertEqual(self.status_of(sales_order), "Preparing for Shipment")
 
 	def test_the_carrier_status_sets_the_rung(self):
@@ -92,13 +95,13 @@ class TestOrderStatus(IntegrationTestCase):
 			with self.subTest(carrier_status=carrier_status):
 				sales_order = make_paid_order()
 				deliver(sales_order)
-				self.book_parcel(sales_order, carrier_status)
+				book_parcel(sales_order.name, carrier_status)
 				self.assertEqual(self.status_of(sales_order), expected)
 
 	def test_a_cancelled_booking_falls_back_to_the_delivery_note(self):
 		sales_order = make_paid_order()
 		deliver(sales_order)
-		self.book_parcel(sales_order, "Cancelled")
+		book_parcel(sales_order.name, "Cancelled")
 		self.assertEqual(self.status_of(sales_order), "Delivered")
 
 	def test_returning_part_of_an_order_is_a_partial_return(self):

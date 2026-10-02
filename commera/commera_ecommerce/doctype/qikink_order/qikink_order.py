@@ -6,19 +6,21 @@ from erpnext.selling.doctype.sales_order.sales_order import make_purchase_order
 from frappe import _
 from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
 from frappe.model.document import Document
-from frappe.utils import cstr, get_datetime, get_url_to_form, now_datetime
+from frappe.utils import cstr, get_datetime, get_url_to_form, now_datetime, validate_url
 
 from commera.api.payments import system_user_session
 from commera.qikink.client import QikinkClient, QikinkRefusedError, QikinkUnavailableError
 from commera.qikink.items import get_qikink_lines, get_qikink_supplier
 from commera.qikink.payload import QikinkDataError, get_order_body
 from commera.qikink.status import RemoteStatus, get_remote_status
+from commera.utils import update_sales_order_ecommerce_status
 
 PUSH_JOB = "commera.qikink.jobs.push_qikink_order"
 MAX_ATTEMPTS = 3
 PUSHABLE_STATES = ("Queued", "Failed")
 SYNCABLE_STATES = ("Pushed", "Needs Attention")
 PURCHASE_ORDER_SAVEPOINT = "qikink_purchase_order"
+WEB_SCHEMES = ("http", "https")
 
 
 class PurchaseOrderRefusedError(frappe.ValidationError):
@@ -67,6 +69,15 @@ class QikinkOrder(Document):
 		# Each failure records its error, and only a push that reaches Qikink clears it.
 		return bool(self.error)
 
+	@property
+	def ecommerce_status(self) -> str:
+		"""Where the parcel is for the shopper: the last Qikink status that moves the order. A problem moves nothing."""
+		for event in reversed(self.tracking_events):
+			remote_status = get_remote_status(event.status)
+			if remote_status and remote_status.ecommerce_status:
+				return remote_status.ecommerce_status
+		return "Order Received"
+
 	def onload(self):
 		self.set_onload("is_pushable", self.is_pushable)
 		self.set_onload("is_syncable", self.is_syncable)
@@ -74,6 +85,11 @@ class QikinkOrder(Document):
 	def validate(self):
 		# Qikink takes only [a-z0-9_] in an order number, at most 15 characters.
 		self.order_number = self.name.lower().replace("-", "")
+
+	def on_update(self):
+		# The shopper's status reads only the Qikink statuses, so the push and the AWB cannot move it.
+		if self.qikink_status and self.has_value_changed("qikink_status"):
+			update_sales_order_ecommerce_status(self.sales_order)
 
 	def queue_push(self) -> None:
 		frappe.enqueue(
@@ -163,7 +179,9 @@ class QikinkOrder(Document):
 		shipping = remote_order.get("shipping") or {}
 		self.awb = shipping.get("awb") or None
 		self.courier = cstr(shipping.get("courier_provider_name")).strip() or None
-		self.tracking_link = shipping.get("tracking_link") or None
+		# The shopper's order page links to it, so only a web address may go there.
+		tracking_link = cstr(shipping.get("tracking_link")).strip()
+		self.tracking_link = tracking_link if validate_url(tracking_link, valid_schemes=WEB_SCHEMES) else None
 
 	def record_status_change(self, remote_order: dict, remote_status: RemoteStatus) -> None:
 		"""Add the new Qikink status to the history, and move the order on."""

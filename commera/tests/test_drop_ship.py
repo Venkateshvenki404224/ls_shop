@@ -190,15 +190,17 @@ class DropShipCheckoutTestCase(DropShipTestCase):
 		).insert(ignore_permissions=True)
 
 	def fill_cart(self):
-		"""The shopper's own cart, addressed and ready to pay, holding one line of each kind."""
+		"""The shopper's own cart, addressed and ready to pay."""
 		frappe.set_user(self.shopper)
-		generate_quotation_for_cart(
-			{"items": [self.cart_line(self.variant, 1), self.cart_line(self.warehouse_item, 2)]}
-		)
+		generate_quotation_for_cart({"items": self.get_cart_lines()})
 		update_quotation_address(
 			{"billing_address": self.get_billing_address(), "shipping_same_as_billing": True}
 		)
 		return _get_cart_quotation()
+
+	def get_cart_lines(self) -> list[dict]:
+		"""One line of each kind."""
+		return [self.cart_line(self.variant, 1), self.cart_line(self.warehouse_item, 2)]
 
 	def get_billing_address(self) -> dict:
 		return {

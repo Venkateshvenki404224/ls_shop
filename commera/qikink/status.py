@@ -75,6 +75,19 @@ STATUS_MAP = {
 }
 
 
+ECOMMERCE_STATUS_RANK = ("Order Received", "Preparing for Shipment", "Shipped", "Delivered")
+RETURN_STATUSES = ("Returned", "Partially Returned")
+
+
 def get_remote_status(qikink_status: str | None) -> RemoteStatus | None:
 	"""The meaning of the Qikink status, in any letter case. None for a status Commera does not know."""
 	return STATUS_MAP.get(cstr(qikink_status).casefold())
+
+
+def get_mixed_order_status(qikink_status: str, warehouse_status: str) -> str:
+	"""A mixed order is as far as its slower parcel. It is Returned only when both parcels come back."""
+	if qikink_status == warehouse_status == "Returned":
+		return "Returned"
+	if qikink_status in RETURN_STATUSES or warehouse_status in RETURN_STATUSES:
+		return "Partially Returned"
+	return min(qikink_status, warehouse_status, key=ECOMMERCE_STATUS_RANK.index)

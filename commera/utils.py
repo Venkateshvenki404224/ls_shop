@@ -15,6 +15,7 @@ from pypika import Order
 
 from commera.core import get_address_docs, get_party
 from commera.order_access import get_key_access
+from commera.qikink.status import get_mixed_order_status
 
 # Ceiling for any IN (...) list this app sends to MariaDB/Postgres.
 IN_CLAUSE_CHUNK_SIZE = 1000
@@ -699,9 +700,21 @@ def update_sales_order_ecommerce_status(sales_order_name):
 	elif docstatus == 0:
 		new_status = "Waiting for Approval"
 	else:
-		new_status = get_fulfilment_status(sales_order_name)
+		new_status = get_ecommerce_status(sales_order_name)
 
 	frappe.db.set_value("Sales Order", sales_order_name, "custom_ecommerce_status", new_status)
+
+
+def get_ecommerce_status(sales_order_name) -> str:
+	"""The status of a submitted order. Qikink ships the Qikink lines as a parcel of their own."""
+	qikink_order = frappe.db.exists("Qikink Order", {"sales_order": sales_order_name})
+	if not qikink_order:
+		return get_fulfilment_status(sales_order_name)
+	qikink_status = frappe.get_doc("Qikink Order", qikink_order).ecommerce_status
+	if not frappe.db.exists("Sales Order Item", {"parent": sales_order_name, "delivered_by_supplier": 0}):
+		return qikink_status
+	# Only the warehouse lines go on a Delivery Note or a carrier booking.
+	return get_mixed_order_status(qikink_status, get_fulfilment_status(sales_order_name))
 
 
 def get_fulfilment_status(sales_order_name) -> str:

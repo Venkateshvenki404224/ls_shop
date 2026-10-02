@@ -3,12 +3,17 @@
 
 frappe.ui.form.on('Qikink Order', {
 	refresh(frm) {
-		if (!frm.doc.__onload?.is_pushable) {
-			return;
+		if (frm.doc.__onload?.is_pushable) {
+			frm.add_custom_button(__('Push to Qikink'), async () => {
+				await frm.call('requeue_push');
+				frm.reload_doc();
+			});
 		}
-		frm.add_custom_button(__('Push to Qikink'), async () => {
-			await frm.call('requeue_push');
-			frm.reload_doc();
-		});
+		if (frm.doc.__onload?.is_syncable) {
+			frm.add_custom_button(__('Sync now'), async () => {
+				await frm.call('sync');
+				frm.reload_doc();
+			});
+		}
 	},
 });

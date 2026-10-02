@@ -10,10 +10,19 @@
 		"order_number",
 		"column_break_qkod",
 		"status",
+		"qikink_status",
 		"attempts",
 		"qikink_order_id",
 		"gateway",
 		"total_order_value",
+		"shipment_section",
+		"awb",
+		"courier",
+		"tracking_link",
+		"column_break_qksh",
+		"last_synced_on",
+		"tracking_section",
+		"tracking_events",
 		"error_section",
 		"error"
 	],
@@ -62,6 +71,14 @@
 			"read_only": 1
 		},
 		{
+			"description": "The status as Qikink spells it.",
+			"fieldname": "qikink_status",
+			"fieldtype": "Data",
+			"in_list_view": 1,
+			"label": "Qikink Status",
+			"read_only": 1
+		},
+		{
 			"default": "0",
 			"description": "The failed attempts to reach Qikink, which Commera retries.",
 			"fieldname": "attempts",
@@ -90,6 +107,50 @@
 			"read_only": 1
 		},
 		{
+			"fieldname": "shipment_section",
+			"fieldtype": "Section Break",
+			"label": "Shipment"
+		},
+		{
+			"fieldname": "awb",
+			"fieldtype": "Data",
+			"label": "AWB",
+			"read_only": 1
+		},
+		{
+			"fieldname": "courier",
+			"fieldtype": "Data",
+			"label": "Courier",
+			"read_only": 1
+		},
+		{
+			"fieldname": "tracking_link",
+			"fieldtype": "Data",
+			"label": "Tracking Link",
+			"read_only": 1
+		},
+		{
+			"fieldname": "column_break_qksh",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "last_synced_on",
+			"fieldtype": "Datetime",
+			"label": "Last Synced On",
+			"read_only": 1
+		},
+		{
+			"fieldname": "tracking_section",
+			"fieldtype": "Section Break"
+		},
+		{
+			"fieldname": "tracking_events",
+			"fieldtype": "Table",
+			"label": "Tracking Events",
+			"options": "Shipping Tracking Event",
+			"read_only": 1
+		},
+		{
 			"fieldname": "error_section",
 			"fieldtype": "Section Break"
 		},
@@ -102,7 +163,7 @@
 	],
 	"in_create": 1,
 	"links": [],
-	"modified": "2026-10-02 03:00:00",
+	"modified": "2026-10-02 06:30:00",
 	"modified_by": "Administrator",
 	"module": "Commera Ecommerce",
 	"name": "Qikink Order",

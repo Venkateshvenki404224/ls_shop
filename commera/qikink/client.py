@@ -8,6 +8,7 @@ from frappe.utils import cint, get_request_session
 BASE_URLS = {"sandbox": "https://sandbox.qikink.com", "live": "https://api.qikink.com"}
 TIMEOUT_SECONDS = 30
 TOKEN_EXPIRY_MARGIN_SECONDS = 60
+ORDER_LIST_PAGE_SIZE = 10
 
 
 class QikinkUnavailableError(Exception):
@@ -64,6 +65,11 @@ class QikinkClient:
 			# Qikink may hold the order all the same, so a retry must look it up first.
 			raise QikinkUnavailableError(_("Qikink sent no order id for the order."))
 		return reply
+
+	def get_orders(self, order_ids: list[str]) -> dict[str, dict]:
+		"""The orders Qikink holds under the order ids, by order id. One call reads one page of 10."""
+		reply = self.send_with_token("GET", "/api/order/list", params={"ids": ",".join(order_ids)})
+		return {str(order["order_id"]): order for order in reply["data"]}
 
 	def get_order(self, order_number: str) -> dict | None:
 		"""The Qikink order made under the order number, if Qikink has one."""

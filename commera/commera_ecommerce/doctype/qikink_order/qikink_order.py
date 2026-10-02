@@ -6,16 +6,18 @@ from erpnext.selling.doctype.sales_order.sales_order import make_purchase_order
 from frappe import _
 from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
 from frappe.model.document import Document
-from frappe.utils import get_url_to_form
+from frappe.utils import cstr, get_datetime, get_url_to_form, now_datetime
 
 from commera.api.payments import system_user_session
 from commera.qikink.client import QikinkClient, QikinkRefusedError, QikinkUnavailableError
 from commera.qikink.items import get_qikink_lines, get_qikink_supplier
 from commera.qikink.payload import QikinkDataError, get_order_body
+from commera.qikink.status import RemoteStatus, get_remote_status
 
 PUSH_JOB = "commera.qikink.jobs.push_qikink_order"
 MAX_ATTEMPTS = 3
 PUSHABLE_STATES = ("Queued", "Failed")
+SYNCABLE_STATES = ("Pushed", "Needs Attention")
 PURCHASE_ORDER_SAVEPOINT = "qikink_purchase_order"
 
 
@@ -30,22 +32,35 @@ class QikinkOrder(Document):
 	from typing import TYPE_CHECKING
 
 	if TYPE_CHECKING:
+		from bwh_shipping.bwh_shipping.doctype.shipping_tracking_event.shipping_tracking_event import (
+			ShippingTrackingEvent,
+		)
 		from frappe.types import DF
 
 		attempts: DF.Int
+		awb: DF.Data | None
+		courier: DF.Data | None
 		error: DF.SmallText | None
 		gateway: DF.Literal["", "COD", "Prepaid"]
+		last_synced_on: DF.Datetime | None
 		order_number: DF.Data | None
 		purchase_order: DF.Link | None
 		qikink_order_id: DF.Data | None
+		qikink_status: DF.Data | None
 		sales_order: DF.Link
 		status: DF.Literal["Queued", "Pushed", "Failed", "Needs Attention", "Completed", "Cancelled"]
 		total_order_value: DF.Currency
+		tracking_events: DF.Table[ShippingTrackingEvent]
+		tracking_link: DF.Data | None
 	# end: auto-generated types
 
 	@property
 	def is_pushable(self) -> bool:
 		return self.status in PUSHABLE_STATES
+
+	@property
+	def is_syncable(self) -> bool:
+		return self.status in SYNCABLE_STATES
 
 	@property
 	def has_failed_before(self) -> bool:
@@ -54,6 +69,7 @@ class QikinkOrder(Document):
 
 	def onload(self):
 		self.set_onload("is_pushable", self.is_pushable)
+		self.set_onload("is_syncable", self.is_syncable)
 
 	def validate(self):
 		# Qikink takes only [a-z0-9_] in an order number, at most 15 characters.
@@ -80,9 +96,7 @@ class QikinkOrder(Document):
 
 	def push(self) -> None:
 		"""Send the Qikink lines to Qikink, with the one drop-ship Purchase Order made for them."""
-		# Lock the row, then read it again: a cancel or another push may have changed it meanwhile.
-		frappe.db.get_value(self.doctype, self.name, "name", for_update=True)
-		self.reload()
+		self.reload_for_update()
 		if not self.is_pushable:
 			return
 		try:
@@ -92,6 +106,89 @@ class QikinkOrder(Document):
 		except (PurchaseOrderRefusedError, QikinkDataError, QikinkRefusedError) as error:
 			self.fail(str(error))
 		self.save(ignore_permissions=True)
+
+	def reload_for_update(self) -> None:
+		"""Lock the row, then read it again: a cancel, a push or a sync may have changed it meanwhile."""
+		frappe.db.get_value(self.doctype, self.name, "name", for_update=True)
+		self.reload()
+
+	@frappe.whitelist(methods=["POST"])
+	def sync(self) -> None:
+		"""Read the order at Qikink now, without waiting for the sync run."""
+		# Frappe checks only read permission before a whitelisted method.
+		self.check_permission("write")
+		if not self.is_syncable:
+			frappe.throw(_("Only a Pushed or Needs Attention Qikink Order can be synced."))
+		client = QikinkClient()
+		if not client.has_order_list:
+			frappe.throw(_("The Qikink sandbox has no order list, so Sync now works on live only."))
+		try:
+			remote_orders = client.get_orders([self.qikink_order_id])
+		except QikinkUnavailableError as error:
+			frappe.throw(str(error))
+		self.apply_order_list(remote_orders)
+
+	def apply_order_list(self, remote_orders: dict[str, dict]) -> None:
+		"""Take on what the Qikink order list, as orders by order id, reports for the order."""
+		self.reload_for_update()
+		if not self.is_syncable:
+			return
+		remote_order = remote_orders.get(self.qikink_order_id)
+		if not remote_order:
+			frappe.throw(_("The Qikink order list has no order {0}.").format(self.qikink_order_id))
+		remote_status = get_remote_status(remote_order["status"])
+		if not remote_status:
+			self.log_error(
+				_("Unknown Qikink status"),
+				_("Qikink reports the status {0}, which Commera does not know.").format(
+					remote_order["status"]
+				),
+			)
+			return
+		# One alert for each problem: a sync that finds the same problem again sends none.
+		is_new_problem = remote_status.is_problem and self.status != "Needs Attention"
+		self.record_shipment(remote_order)
+		self.last_synced_on = now_datetime()
+		if remote_order["status"] != self.qikink_status:
+			self.record_status_change(remote_order, remote_status)
+		self.save(ignore_permissions=True)
+		# After the save: an order that fails to save is tried again, and must not alert again.
+		if is_new_problem:
+			self.send_alert(
+				_("Qikink order {0} needs attention").format(self.order_number),
+				_("Qikink reports {0}.").format(self.qikink_status),
+			)
+
+	def record_shipment(self, remote_order: dict) -> None:
+		shipping = remote_order.get("shipping") or {}
+		self.awb = shipping.get("awb") or None
+		self.courier = cstr(shipping.get("courier_provider_name")).strip() or None
+		self.tracking_link = shipping.get("tracking_link") or None
+
+	def record_status_change(self, remote_order: dict, remote_status: RemoteStatus) -> None:
+		"""Add the new Qikink status to the history, and move the order on."""
+		self.qikink_status = remote_order["status"]
+		delivered_on = remote_order.get("delivered_on") if remote_status.is_delivery else None
+		self.append(
+			"tracking_events",
+			{"timestamp": get_datetime(delivered_on or self.last_synced_on), "status": self.qikink_status},
+		)
+		self.status = remote_status.state
+		if remote_status.is_delivery:
+			self.deliver_purchase_order()
+
+	def deliver_purchase_order(self) -> None:
+		"""Deliver each line through the ERPNext drop-ship action, which updates the Sales Order."""
+		# As Administrator: the staff member who clicks "Sync now" may not change Purchase Orders.
+		with system_user_session():
+			purchase_order = frappe.get_doc("Purchase Order", self.purchase_order)
+			undelivered_lines = [
+				{"name": row.name, "qty_change": row.qty - row.received_qty}
+				for row in purchase_order.items
+				if row.received_qty < row.qty
+			]
+			if undelivered_lines:
+				purchase_order.update_dropship_received_qty(undelivered_lines)
 
 	def send_to_qikink(self) -> None:
 		if not self.purchase_order:

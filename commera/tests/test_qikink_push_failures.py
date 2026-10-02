@@ -47,6 +47,18 @@ class QikinkFailureTestCase(QikinkPushTestCase):
 			}
 		).insert(ignore_permissions=True)
 
+	def run_sync(self):
+		# The job commits each order, and inside a test that commit would escape the rollback.
+		with patch.object(frappe.db, "commit"):
+			sync_qikink_orders()
+
+	def click(self, method: str, qikink_order):
+		"""The call a form button makes: a POST to run the whitelisted method."""
+		self.addCleanup(setattr, frappe.local, "request", getattr(frappe.local, "request", None))
+		set_request(method="POST")
+		frappe.local.response = frappe._dict(docs=[])
+		run_doc_method(method, dt="Qikink Order", dn=qikink_order.name)
+
 	def refuse_next_create(self, error: str = QIKINK_ERROR):
 		self.qikink.create_replies.append(make_reply(400, {"error": error, "status_code": "400"}))
 
@@ -358,11 +370,7 @@ class TestQikinkPushButton(QikinkFailureTestCase):
 	"""Staff click "Push to Qikink" on the Qikink Order or on the Sales Order."""
 
 	def click_push_to_qikink(self, qikink_order):
-		"""The call both forms make: a POST to run the whitelisted method."""
-		self.addCleanup(setattr, frappe.local, "request", getattr(frappe.local, "request", None))
-		set_request(method="POST")
-		frappe.local.response = frappe._dict(docs=[])
-		run_doc_method("requeue_push", dt="Qikink Order", dn=qikink_order.name)
+		self.click("requeue_push", qikink_order)
 
 	def test_the_forms_offer_push_to_qikink_while_the_order_is_queued_or_failed(self):
 		sales_order = self.place_prepaid_order()
@@ -415,11 +423,6 @@ class TestQikinkPushButton(QikinkFailureTestCase):
 
 
 class TestQikinkSyncJob(QikinkFailureTestCase):
-	def run_sync(self):
-		# The job commits each order, and inside a test that commit would escape the rollback.
-		with patch.object(frappe.db, "commit"):
-			sync_qikink_orders()
-
 	def get_status_and_attempts(self, qikink_order) -> tuple[str, int]:
 		return frappe.db.get_value("Qikink Order", qikink_order.name, ["status", "attempts"])
 
